@@ -27,6 +27,9 @@ const SaveStore = (() => {
       crops: {},               // المخزن: { plantId: count }
       products: {},            // منتجات المطبخ: { recipeId: count }
       cat: { name: '', hearts: 0, day: '', dayHearts: 0 },
+      decor: {},               // الزينة المملوكة: { decorId: ظاهرة أم مخفية }
+      challenge: { done: [], lastWeek: '' }, // تحديات الواقع
+      tutorial: { step: 'plant', plot: -1 }, // plant ← water ← wait ← harvest ← sell ← done
       plots,
       stats: { harvested: {}, sold: 0, earned: 0, birdsShooed: 0, quickUsed: 0, cooked: 0, stallSold: 0 },
       parent: freshParent(),   // إعدادات الأهل
@@ -66,6 +69,21 @@ const SaveStore = (() => {
       day: typeof cat.day === 'string' ? cat.day : '',
       dayHearts: safeInt(cat.dayHearts, 0),
     };
+    const decor = {};
+    if (s.decor && typeof s.decor === 'object') {
+      for (const id of Object.keys(s.decor)) if (DATA.DECOR[id]) decor[id] = !!s.decor[id];
+    }
+    s.decor = decor;
+    const ch = s.challenge && typeof s.challenge === 'object' ? s.challenge : {};
+    s.challenge = {
+      done: Array.isArray(ch.done) ? ch.done.filter(id => DATA.CHALLENGES.some(c => c.id === id)) : [],
+      lastWeek: typeof ch.lastWeek === 'string' ? ch.lastWeek : '',
+    };
+    const tut = s.tutorial && typeof s.tutorial === 'object' ? s.tutorial : {};
+    s.tutorial = {
+      step: ['plant', 'water', 'wait', 'harvest', 'sell', 'done'].includes(tut.step) ? tut.step : 'done',
+      plot: Number.isInteger(tut.plot) ? tut.plot : -1,
+    };
     s.stats = { ...base.stats, ...(s.stats || {}) };
     if (typeof s.roofName !== 'string') s.roofName = '';
     s.parent = cleanParent(s.parent);
@@ -101,6 +119,7 @@ const SaveStore = (() => {
         c.pest = Number.isFinite(c.pest) ? c.pest : 0;
         c.fert = !!c.fert;
         c.quick = !!c.quick;
+        c.tutorial = !!c.tutorial;
       }
       return plot;
     });
@@ -155,6 +174,8 @@ const SaveStore = (() => {
       const done = Object.values(d.stats.harvested || {}).reduce((a, b) => a + (Number(b) || 0), 0);
       d.stats.quickUsed = Math.min(DATA.QUICK_START.COUNT, done);
     }
+    // v6 → v7: الزينة والتحديات والشرح. اللاعب الحالي لا يعيد الشرح
+    if (v < 7) d.tutorial = { step: 'done', plot: -1 };
     return normalize(d, now);
   }
 

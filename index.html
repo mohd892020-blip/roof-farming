@@ -6,6 +6,12 @@
   <meta name="theme-color" content="#7ec8f0">
   <meta name="color-scheme" content="light">
   <title>سطحي الأخضر</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="سطحي الأخضر">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&display=swap" rel="stylesheet">
@@ -102,6 +108,8 @@
         <div class="tiles" aria-hidden="true"></div>
         <div class="back-wall" aria-hidden="true"></div>
 
+        <div class="decor-layer" id="decorLayer" aria-hidden="true"></div>
+
         <!-- ديكور ثابت -->
         <svg class="decor tank" viewBox="0 0 80 100" aria-hidden="true">
           <path d="M14 62 L10 98 M66 62 L70 98 M24 62 L22 96 M56 62 L58 96" stroke="#6b7280" stroke-width="4" stroke-linecap="round"/>
@@ -181,6 +189,11 @@
 
       <div class="rain" aria-hidden="true"></div>
       <div class="bird-layer" id="birdLayer" aria-hidden="true"></div>
+      <div class="tutorial-bar" id="tutorialBar" hidden>
+        <b id="tutorialStep">1/4</b>
+        <span id="tutorialText"></span>
+        <button class="tutorial-skip" id="tutorialSkip">تخطي</button>
+      </div>
       <div class="mode-banner" id="modeBanner" hidden>
         <span id="modeText"></span>
         <button class="mode-close" id="modeClose" aria-label="إلغاء">✕</button>
@@ -271,7 +284,9 @@
       <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
     </div>
 
-    <div class="fx-layer" id="fx" aria-hidden="true"></div>
+    <div class="fx-layer" id="fx" aria-hidden="true">
+      <div class="tutorial-finger" id="tutorialFinger" hidden>👇</div>
+    </div>
   </div>
 
   <script src="data.js" defer></script>
@@ -284,5 +299,7 @@
   <script src="kitchen.js" defer></script>
   <script src="stall.js" defer></script>
   <script src="cat.js" defer></script>
+  <script src="sound.js" defer></script>
+  <script src="tutorial.js" defer></script>
 </body>
 </html>

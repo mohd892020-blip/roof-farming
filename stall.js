@@ -83,6 +83,7 @@ const Stall = (() => {
     if (!t || busy || !customer) return;
     if (t.dataset.kind !== customer.kind || t.dataset.id !== customer.id) {
       // خطأ بسيط بلا أي خسارة
+      Sound.play('soft');
       UI.replay($('speech'), 'shake');
       UI.toast('مش هاي، جرّب غيرها 😊', 1500);
       return;

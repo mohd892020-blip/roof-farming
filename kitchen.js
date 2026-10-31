@@ -107,6 +107,7 @@ const Kitchen = (() => {
       count: 1,
       onArrive: () => { const pot = $('pot'); if (pot) UI.replay(pot, 'wiggle'); },
     });
+    Sound.play('tap');
     job.left.splice(k, 1);
     if (!job.left.length) job.step = 'act';
     renderJob();
@@ -114,6 +115,7 @@ const Kitchen = (() => {
 
   function tapAction() {
     job.taps++;
+    Sound.play('tap');
     if (job.taps < job.recipe.taps) {
       renderJob();
       UI.replay($('pot'), 'wiggle');
@@ -123,6 +125,7 @@ const Kitchen = (() => {
     if (!r.ok) { job = null; renderList(); return; }
     job.step = 'done';
     renderJob();
+    Sound.play('level');
     UI.confetti();
     UI.render();
   }

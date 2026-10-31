@@ -65,7 +65,7 @@ const Game = (() => {
     let r = DATA.WEATHER[state.weather.type].growth;
     if (crop && crop.bird) r *= DATA.BIRDS.SLOW;
     if (crop && crop.pest && !away) r *= DATA.PESTS.SLOW;
-    if (crop && crop.quick) r *= plant(crop.plantId).growMs / DATA.QUICK_START.MS;
+    if (crop && crop.quick) r *= plant(crop.plantId).growMs / (crop.tutorial ? DATA.TUTORIAL_GROW_MS : DATA.QUICK_START.MS);
     return r;
   }
 
@@ -89,7 +89,7 @@ const Game = (() => {
     const away = dt > DATA.AWAY_THRESHOLD;
     if (away) clearBirds(); // أثناء الغياب لا توجد عصافير
     state.plots.forEach((plot, i) => grow(plot, dt, away, i));
-    if (!away && !paused) { birdTick(now, dt); pestTick(now, dt); }
+    if (!away && !paused && state.tutorial.step === 'done') { birdTick(now, dt); pestTick(now, dt); }
     markDirty();
   }
 
@@ -438,6 +438,7 @@ const Game = (() => {
     DATA.PLOT_UNLOCKS.forEach(u => { if (u.level === L) list.push({ type: 'plot' }); });
     DATA.TIER_ORDER.forEach(id => { const t = DATA.TIERS[id]; if (t.level === L && t.price) list.push({ type: 'tier', tier: t }); });
     DATA.TOOL_ORDER.forEach(id => { const t = DATA.TOOLS[id]; if (t.level === L) list.push({ type: 'tool', tool: t }); });
+    DATA.DECOR_ORDER.forEach(id => { const d = DATA.DECOR[id]; if (!d.challenge && d.level === L) list.push({ type: 'decor', decor: d }); });
     return list;
   }
 
@@ -508,14 +509,18 @@ const Game = (() => {
     if (!state.seeds[plantId]) return { ok: false, reason: 'noSeeds' };
     state.seeds[plantId]--;
     if (!state.seeds[plantId]) delete state.seeds[plantId];
-    const quick = state.stats.quickUsed < DATA.QUICK_START.COUNT;
-    if (quick) state.stats.quickUsed++;
+    // نبتة الشرح الأولى لا تُحسب من البداية السريعة
+    const tutorial = state.tutorial.step === 'plant';
+    const quick = tutorial || state.stats.quickUsed < DATA.QUICK_START.COUNT;
+    if (quick && !tutorial) state.stats.quickUsed++;
+    if (tutorial) { state.tutorial.step = 'water'; state.tutorial.plot = i; }
     plot.crop = {
       plantId,
       progress: 0,
       nextThirstAt: quick ? p.growMs : waterInterval(p, plot), // البداية السريعة: سقاية الزراعة فقط
       thirsty: true, // تحتاج سقاية عند الزراعة (إلا إذا سقاها الرشاش أو المطر)
       quick,
+      tutorial,
       harvests: 0,
       bird: 0,
       pest: 0,
@@ -525,7 +530,7 @@ const Game = (() => {
     autoWater(plot, i);
     const autoWatered = !plot.crop.thirsty;
     commit();
-    return { ok: true, quick, sprinkled: autoWatered, rained: autoWatered && !plot.sprinkler };
+    return { ok: true, quick: quick && !tutorial, sprinkled: autoWatered, rained: autoWatered && !plot.sprinkler };
   }
 
   function water(i) {
@@ -564,6 +569,7 @@ const Game = (() => {
       crop.pest = 0;
       crop.fert = false;
       crop.quick = false;
+      crop.tutorial = false;
       autoWater(plot, i);
     } else {
       plot.crop = null;
@@ -669,6 +675,68 @@ const Game = (() => {
     return { ok: true, coins };
   }
 
+  /* ---------- الزينة ---------- */
+
+  const decorUnlocked = d => !d.challenge && level() >= d.level;
+
+  function buyDecor(id) {
+    const d = DATA.DECOR[id];
+    if (!d || d.challenge || id in state.decor) return { ok: false, reason: 'unknown' };
+    if (!decorUnlocked(d)) return { ok: false, reason: 'level' };
+    if (state.coins < d.price) return { ok: false, reason: 'coins' };
+    state.coins -= d.price;
+    state.decor[id] = true;
+    commit();
+    return { ok: true, decor: d };
+  }
+
+  function toggleDecor(id) {
+    if (!(id in state.decor)) return { ok: false };
+    state.decor[id] = !state.decor[id];
+    commit();
+    return { ok: true, shown: state.decor[id] };
+  }
+
+  /* ---------- تحدي الواقع الأسبوعي ---------- */
+
+  const weekKey = now => String(Math.floor(now / (7 * DATA.DAY)));
+
+  function currentChallenge(now = Date.now()) {
+    const c = state.challenge;
+    if (c.lastWeek === weekKey(now)) return null;
+    return DATA.CHALLENGES.find(x => !c.done.includes(x.id)) || null;
+  }
+
+  function completeChallenge(now = Date.now()) {
+    const ch = currentChallenge(now);
+    if (!ch) return { ok: false };
+    state.challenge.done.push(ch.id);
+    state.challenge.lastWeek = weekKey(now);
+    state.decor[ch.decor] = true;
+    commit();
+    return { ok: true, challenge: ch, decor: DATA.DECOR[ch.decor] };
+  }
+
+  /* ---------- الشرح التفاعلي ---------- */
+
+  function tutorialTick() {
+    const t = state.tutorial;
+    const before = t.step;
+    if (t.step === 'done' || t.step === 'plant') return before;
+    const info = cropInfo(t.plot);
+    if (t.step === 'water' && (!info || !info.thirsty)) t.step = 'wait';
+    if (t.step === 'wait' && (!info || info.ready)) t.step = 'harvest';
+    if (t.step === 'harvest' && !info) t.step = 'sell';
+    if (t.step === 'sell' && state.stats.sold > 0) t.step = 'done';
+    if (t.step !== before) markDirty();
+    return t.step;
+  }
+
+  function skipTutorial() {
+    state.tutorial.step = 'done';
+    commit();
+  }
+
   /* ---------- قطة السطح ---------- */
 
   function setCatName(name) {
@@ -757,6 +825,7 @@ const Game = (() => {
     tierOf, nextTier, nextPlot, dayKey, takeNotices, setPaused, restInfo,
     fulfillOrder, orderReward, canFulfill, pigeonWaiting, feedPigeon, claimLogin, removePest, fertilize,
     recipeUnlocked, canCook, cook, sellProduct, goods, stallPrice, stallSell, setCatName, catHeart, catItems,
+    decorUnlocked, buyDecor, toggleDecor, currentChallenge, completeChallenge, tutorialTick, skipTutorial,
     get weather() { return DATA.WEATHER[state.weather.type]; },
     buySeed, plantSeed, water, harvest, sell, sellAll, setRoofName,
     buyTool, installTool, unlockPlot, upgradePlot, shooBird, guardProgress,

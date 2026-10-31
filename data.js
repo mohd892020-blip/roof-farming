@@ -168,7 +168,7 @@ const DATA = (() => {
 
   return {
     SAVE_KEY: 'rooftop_save_v1',
-    SAVE_VERSION: 6,
+    SAVE_VERSION: 7,
 
     MIN, HOUR, DAY,
 
@@ -360,6 +360,38 @@ const DATA = (() => {
         { hearts: 30, item: 'hat', name: 'قبعة قش', icon: '👒' },
       ],
     },
+
+    // الشرح التفاعلي: أول نبتة تجهز بـ 30 ثانية، مرة واحدة فقط
+    TUTORIAL_GROW_MS: 30 * 1000,
+
+    // الزينة: للشكل فقط، تُشترى بالعملات. spot = مكانها في طبقة الزينة فوق الأرضية
+    DECOR: {
+      pots: { id: 'pots', name: 'أصص زهور', icon: '🌷', price: 80, level: 3, html: '🌷🌼🌸', spot: 'left:21%;top:-16px;font-size:20px' },
+      flags: { id: 'flags', name: 'أعلام ملوّنة', icon: '🚩', price: 150, level: 7, wide: true, spot: 'left:0;right:0;top:-82px;height:44px' },
+      chairs: { id: 'chairs', name: 'كراسي', icon: '🪑', price: 200, level: 9, html: '🪑🪑', spot: 'left:27%;top:38px;font-size:28px' },
+      lanterns: { id: 'lanterns', name: 'فوانيس', icon: '🏮', price: 300, level: 11, html: '🏮', spot: 'left:62%;top:-30px;font-size:26px' },
+      lights: { id: 'lights', name: 'أضواء ليلية', icon: '💡', price: 400, level: 13, wide: true, spot: 'left:0;right:0;top:-122px;height:40px' },
+      rug: { id: 'rug', name: 'سجادة', icon: '🧵', price: 500, level: 15, html: '', spot: 'left:36%;right:34%;top:60px;height:22px' },
+      birdhouse: { id: 'birdhouse', name: 'بيت عصافير', icon: '🛖', price: 600, level: 16, html: '🛖', spot: 'left:46%;top:-30px;font-size:24px' },
+      vine: { id: 'vine', name: 'عريشة عنب', icon: '🍇', price: 700, level: 17, html: '🍃🍇🍃🍃🍇🍃', spot: 'left:30%;top:-20px;font-size:15px' },
+      fountain: { id: 'fountain', name: 'نافورة صغيرة', icon: '⛲', price: 900, level: 18, html: '⛲', spot: 'left:64%;top:32px;font-size:34px' },
+      telescope: { id: 'telescope', name: 'تلسكوب', icon: '🔭', price: 1100, level: 19, html: '🔭', spot: 'left:23%;top:24px;font-size:30px' },
+      kite: { id: 'kite', name: 'طائرة ورقية', icon: '🪁', price: 1400, level: 20, html: '🪁', spot: 'left:30%;top:-130px;font-size:32px' },
+      // زينة خاصة: جوائز تحديات الواقع، لا تُشترى
+      seedling: { id: 'seedling', name: 'شتلة من الواقع', icon: '🌱', challenge: true, html: '🌱', spot: 'left:44%;top:40px;font-size:26px' },
+      sunflower: { id: 'sunflower', name: 'عبّاد شمس', icon: '🌻', challenge: true, html: '🌻', spot: 'left:53%;top:-18px;font-size:22px' },
+      medal: { id: 'medal', name: 'وسام المزارع', icon: '🏅', challenge: true, html: '🏅', spot: 'left:38%;top:-18px;font-size:22px' },
+      teaset: { id: 'teaset', name: 'طقم شاي', icon: '🍵', challenge: true, html: '🍵', spot: 'left:33%;top:42px;font-size:20px' },
+    },
+    DECOR_ORDER: ['pots', 'flags', 'chairs', 'lanterns', 'lights', 'rug', 'birdhouse', 'vine', 'fountain', 'telescope', 'kite', 'seedling', 'sunflower', 'medal', 'teaset'],
+
+    // تحدي الواقع الأسبوعي (اختياري): يؤكده الأهل، والجائزة قطعة زينة خاصة
+    CHALLENGES: [
+      { id: 'grow', text: 'ازرع نعناعاً حقيقياً مع أهلك', decor: 'seedling' },
+      { id: 'water', text: 'اسقِ نبتة حقيقية في بيتك 3 أيام', decor: 'sunflower' },
+      { id: 'draw', text: 'ارسم نبتتك المفضلة على ورقة', decor: 'medal' },
+      { id: 'tea', text: 'اعمل شاي نعناع مع أهلك', decor: 'teaset' },
+    ],
 
     // خريطة المراحل
     MAP_LEVELS: 20,

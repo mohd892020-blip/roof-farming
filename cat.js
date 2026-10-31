@@ -96,6 +96,7 @@ const Cat = (() => {
     const r = Game.catHeart();
     if (r.milestone) {
       const m = r.milestone;
+      Sound.play('gift');
       applyItems();
       UI.showModal(`
         <div class="hero">${m.icon}</div>
@@ -157,6 +158,7 @@ const Cat = (() => {
   }
 
   function pet() {
+    Sound.play('purr');
     pose('happy');
     hearts(3);
     reward();
@@ -179,6 +181,7 @@ const Cat = (() => {
       pose('eat');
       setTimeout(() => {
         bowl.remove();
+        Sound.play('purr');
         pose('happy');
         hearts(2);
         reward();
@@ -215,6 +218,7 @@ const Cat = (() => {
     const z = zone();
     const tx = Math.min(z.max, Math.max(z.min, e.clientX - box.left));
     const ball = document.createElement('div');
+    Sound.play('tap');
     ball.className = 'cat-ball';
     ball.textContent = '🧶';
     ball.style.top = `${TOP + 24}px`;

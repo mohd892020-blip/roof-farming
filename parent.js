@@ -266,6 +266,11 @@ const Parent = (() => {
       </section>
 
       <section class="p-card">
+        <h3>🌍 تحدي الأسبوع</h3>
+        ${challengeHtml()}
+      </section>
+
+      <section class="p-card">
         <h3>📊 التقرير الأسبوعي</h3>
         ${weeklyChart(now)}
       </section>
@@ -287,6 +292,15 @@ const Parent = (() => {
         </div>
         <button class="btn danger" data-act="reset">إعادة ضبط اللعبة</button>
       </section>`;
+  }
+
+  // تحدي اختياري من الواقع: الأهل يؤكدونه والطفل يأخذ قطعة زينة خاصة
+  function challengeHtml() {
+    const ch = Game.currentChallenge();
+    if (!ch) return '<p class="p-note">لا يوجد تحدي جديد هذا الأسبوع 🌱</p>';
+    const prize = DATA.DECOR[ch.decor];
+    return `<p class="p-note">${ch.text}. الجائزة: ${prize.name} ${prize.icon}</p>
+      <button class="btn" data-act="challengeDone">أكّد إتمام التحدي ✅</button>`;
   }
 
   /* ---------- التقرير الأسبوعي: دقائق اللعب لآخر 7 أيام ---------- */
@@ -409,6 +423,14 @@ const Parent = (() => {
           UI.toast(`أضفت ${DATA.LIMIT_EXTRA_MIN} دقائق لليوم ⏱️`);
           break;
         }
+        case 'challengeDone': {
+          const r = Game.completeChallenge();
+          if (r.ok) {
+            Sound.play('gift');
+            UI.toast(`صارت ${r.decor.name} على السطح ${r.decor.icon}`);
+          }
+          break;
+        }
         case 'setPin': setPinFlow(); return;
         case 'removePin':
           p.pin = '';
@@ -431,6 +453,7 @@ const Parent = (() => {
     else if (t.dataset.time) p[t.dataset.time] = t.value;
     else return;
     Game.save();
+    Sound.sync();
     renderPanel();
   }
 

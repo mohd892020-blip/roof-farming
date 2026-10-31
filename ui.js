@@ -273,10 +273,48 @@ const UI = (() => {
     el.boardBadge.textContent = ready;
     el.carrier.hidden = !Game.pigeonWaiting() || !!lockState || carrierLeaving;
     el.kitchenBadge.hidden = !DATA.RECIPE_ORDER.some(id => Game.canCook(DATA.RECIPES[id]));
+    renderDecor();
     el.roofName.textContent = s.roofName || DATA.DEFAULT_ROOF_NAME;
     const n = Game.cropCount();
     el.shopBadge.hidden = n === 0;
     el.shopBadge.textContent = n > 99 ? '99+' : n;
+  }
+
+  /* ---------- الزينة على السطح ---------- */
+
+  const FLAGS_SVG = (() => {
+    const colors = ['#e2574c', '#ffc83d', '#4caf50', '#3aa0e8', '#b48ae0'];
+    let s = '<path d="M0 6 Q200 34 400 6" stroke="#fff" stroke-width="2" fill="none"/>';
+    for (let k = 0; k < 13; k++) {
+      const x = 15 + k * 30;
+      const y = 6 + 14 * (1 - ((x - 200) / 200) ** 2);
+      s += `<path d="M${x - 11} ${y} H${x + 11} L${x} ${y + 21}Z" fill="${colors[k % colors.length]}"/>`;
+    }
+    return `<svg viewBox="0 0 400 44" preserveAspectRatio="none">${s}</svg>`;
+  })();
+
+  const LIGHTS_SVG = (() => {
+    let s = '<path d="M0 4 Q200 34 400 4" stroke="#7a6a55" stroke-width="1.5" fill="none"/>';
+    for (let k = 0; k < 11; k++) {
+      const x = 20 + k * 36;
+      const y = 4 + 15 * (1 - ((x - 200) / 200) ** 2);
+      s += `<circle class="bulb" cx="${x}" cy="${y + 5}" r="4.5" fill="#ffe08a"/>`;
+    }
+    return `<svg viewBox="0 0 400 40" preserveAspectRatio="none">${s}</svg>`;
+  })();
+
+  let decorKey = '';
+
+  function renderDecor() {
+    const d = Game.state.decor;
+    const key = JSON.stringify(d);
+    if (key === decorKey) return;
+    decorKey = key;
+    el.decorLayer.innerHTML = DATA.DECOR_ORDER.filter(id => d[id]).map(id => {
+      const item = DATA.DECOR[id];
+      const inner = id === 'flags' ? FLAGS_SVG : id === 'lights' ? LIGHTS_SVG : item.html;
+      return `<span class="deco deco-${id}" style="${item.spot}">${inner}</span>`;
+    }).join('');
   }
 
   function setCoins(v) {
@@ -295,12 +333,14 @@ const UI = (() => {
     };
     requestAnimationFrame(step);
     replay(el.coinsPill, 'bump');
+    Sound.play('coin');
   }
 
   function render() {
     renderHud();
     renderPlots();
     if (sheet) renderSheet();
+    Tutorial.update();
   }
 
   /* =====================================================
@@ -342,6 +382,7 @@ const UI = (() => {
     const p = DATA.PLANTS[plantId];
     render();
     puff(plotEl(i));
+    Sound.play('plant');
     const msg = r.rained ? `زرعت ${p.name}! المطر سقاها 🌧️` : r.sprinkled ? `زرعت ${p.name}! الرشاش سقاها 💦` : `زرعت ${p.name}! الآن اسقِها 💧`;
     toast(r.quick ? `${msg} ⚡ بتجهز بدقيقة` : msg, r.quick ? 3200 : 2400);
     if (mode.type === 'plant' && !Game.state.seeds[plantId]) setMode({ type: 'none' });
@@ -357,6 +398,7 @@ const UI = (() => {
     render();
     const b = plotEl(i);
     rain(b);
+    Sound.play('water');
     replay(b.querySelector('.plant'), 'wiggle');
     if (Game.state.energy === 0) setMode({ type: 'none' });
     if (mode.type === 'water' && !hasThirsty()) {
@@ -372,6 +414,7 @@ const UI = (() => {
     if (!r.ok) return;
     if (r.bonus) coinHold++;
     render();
+    Sound.play('harvest');
     fly(Art.icon(r.plant), from, el.btnShop, { count: 1, onArrive: () => replay(el.shopBadge, 'bump') });
     fly('<span class="fly-star">⭐</span>', from, el.levelPill, { count: 1, onArrive: () => replay(el.levelPill, 'bump') });
     if (r.bonus) {
@@ -384,6 +427,7 @@ const UI = (() => {
   }
 
   function noEnergy() {
+    Sound.play('soft');
     replay(el.energyPill, 'shake');
     if (mode.type === 'water') setMode({ type: 'none' });
     toast('خلصت طاقة اليوم ⚡ نباتاتك بخير، الطاقة ترجع الصبح 🌅', 3500);
@@ -416,6 +460,7 @@ const UI = (() => {
     if (!r.ok) return;
     const from = plotEl(i).querySelector('.pest').getBoundingClientRect();
     render();
+    Sound.play('pop');
     floatText('👋🐛', from);
     replay(plotEl(i).querySelector('.plant'), 'wiggle');
     toast('شلت الدودة 🐛 النبتة رجعت تكبر بسرعتها 💚');
@@ -447,6 +492,7 @@ const UI = (() => {
     const r = Game.shooBird(i);
     if (!r.ok) return;
     render();
+    Sound.play('shoo');
     replay(plotEl(i).querySelector('.plant'), 'wiggle');
     const g = Game.guardProgress();
     if (r.rewards.length) return showGuardRewards(r.rewards);
@@ -454,6 +500,7 @@ const UI = (() => {
   }
 
   function showGuardRewards(rewards) {
+    Sound.play('gift');
     const scare = rewards.includes('scarecrow');
     el.modal.innerHTML = `
       <div class="hero">${scare ? Birds.SCARECROW_ICON : '🥅'}</div>
@@ -520,6 +567,7 @@ const UI = (() => {
     el.app.classList.toggle('night', reason === 'sleep');
     el.app.classList.toggle('locked', !!reason);
     Game.setPaused(!!reason);
+    Sound.sync();
     if (!reason) {
       el.lockScreen.hidden = true;
       el.lockScreen.innerHTML = '';
@@ -547,7 +595,7 @@ const UI = (() => {
   let wasResting = false;
 
   function checkRest() {
-    if (lockState || Game.isFirstRun() || Parent.panelOpen || Kitchen.isOpen || Stall.isOpen) return;
+    if (lockState || Game.isFirstRun() || Parent.panelOpen || Kitchen.isOpen || Stall.isOpen || Tutorial.active) return;
     const r = Game.restInfo();
     if (!r.resting) { wasResting = false; return; }
     if (wasResting || !el.modalOverlay.hidden || sheet || mode.type !== 'none') return;
@@ -580,6 +628,7 @@ const UI = (() => {
     if (!r.ok) return;
     const rect = el.carrier.getBoundingClientRect();
     carrierLeaving = true;
+    Sound.play('gift');
     floatText('🌾', rect);
     el.carrier.animate([
       { transform: 'translate(0, 0)' },
@@ -596,10 +645,11 @@ const UI = (() => {
   }
 
   function checkLogin() {
-    if (lockState || Game.isFirstRun() || Parent.panelOpen || !el.modalOverlay.hidden || pendingGrandma) return;
+    if (lockState || Game.isFirstRun() || Parent.panelOpen || Tutorial.active || !el.modalOverlay.hidden || pendingGrandma) return;
     const r = Game.claimLogin();
     if (!r || !r.reward) return;
     render();
+    Sound.play('gift');
     showModal(`
       <div class="hero">🌞</div>
       <h2>أهلاً! هذا يومك رقم ${r.days} على السطح</h2>
@@ -640,6 +690,7 @@ const UI = (() => {
     if (u.type === 'plant') return [Art.icon(u.plant), `بذور ${u.plant.name}`];
     if (u.type === 'plot') return ['🪴', 'حوض جديد تقدر تشتريه'];
     if (u.type === 'tier') return [u.tier.icon, `ترقية الأحواض: ${u.tier.name}`];
+    if (u.type === 'decor') return [u.decor.icon, `زينة: ${u.decor.name}`];
     return [u.tool.icon, u.tool.name];
   }
 
@@ -661,6 +712,7 @@ const UI = (() => {
       </div>
     </div>`;
     el.modalOverlay.hidden = false;
+    Sound.play('level');
     $('lvOk').onclick = closeModal;
     $('lvMap').onclick = () => { closeModal(); LevelMap.open({ from: lu.level - 1 }); };
     confetti();
@@ -969,7 +1021,45 @@ const UI = (() => {
     const canPick = lvl >= firstUp.level;
     body += `<div class="btn-row"><button class="btn green big" data-act="upgradeMode" ${canPick ? '' : 'disabled'}>
       ${canPick ? '🔨 اختر حوضاً لترقيته' : `🔒 الترقية تفتح في المستوى ${firstUp.level}`}</button></div>`;
+    body += decorCards();
     el.sheetBody.innerHTML = body;
+  }
+
+  function decorCards() {
+    const s = Game.state;
+    const items = DATA.DECOR_ORDER.map(id => DATA.DECOR[id]);
+    const shop = items.filter(d => !d.challenge && !(d.id in s.decor) && Game.decorUnlocked(d));
+    const next = items.find(d => !d.challenge && !Game.decorUnlocked(d));
+    const owned = items.filter(d => d.id in s.decor);
+    const ch = Game.currentChallenge();
+    let html = '<h3 class="section-title">🏮 زينة السطح</h3>';
+    if (ch) {
+      const prize = DATA.DECOR[ch.decor];
+      html += `<div class="item-card challenge-card">
+        <div class="ic emoji">${prize.icon}</div>
+        <div class="info">
+          <h3>تحدي الأسبوع 🌍</h3>
+          <div class="desc">${ch.text}. لما تخلّصه، خلّي أهلك يأكدوه من ⚙️ وخذ ${prize.name}</div>
+        </div>
+      </div>`;
+    }
+    html += '<div class="card-list decor-list">';
+    html += [...shop, ...(next ? [next] : []), ...owned].map(d => {
+      const has = d.id in s.decor;
+      const locked = !has && !Game.decorUnlocked(d);
+      const action = has
+        ? `<button class="btn" data-act="toggleDecor" data-id="${d.id}">${s.decor[d.id] ? 'إخفاء' : 'إظهار'}</button>`
+        : `<button class="btn gold" data-act="buyDecor" data-id="${d.id}" ${!locked && s.coins >= d.price ? '' : 'disabled'}>اشترِ <i class="coin sm"></i> ${d.price}</button>`;
+      return `<div class="item-card ${locked ? 'locked' : ''}">
+        <div class="ic emoji">${d.icon}</div>
+        <div class="info">
+          <h3>${d.name}</h3>
+          ${locked ? `<div class="lock">🔒 تفتح في المستوى ${d.level}</div>` : has ? '<div class="owned">على سطحك ✅</div>' : ''}
+        </div>
+        <div class="actions">${action}</div>
+      </div>`;
+    }).join('');
+    return `${html}</div>`;
   }
 
   function onSheetClick(e) {
@@ -1041,6 +1131,21 @@ const UI = (() => {
         closeSheet();
         setMode({ type: 'upgrade' });
         break;
+      case 'buyDecor': {
+        const r = Game.buyDecor(id);
+        if (r.ok) {
+          setCoins(Game.state.coins);
+          replay(el.coinsPill, 'bump');
+          Sound.play('gift');
+          toast(`صارت ${r.decor.name} على سطحك ${r.decor.icon}`);
+          render();
+        }
+        break;
+      }
+      case 'toggleDecor':
+        Game.toggleDecor(id);
+        render();
+        break;
       case 'sellProd1':
         doSell(t, () => Game.sellProduct(id, 1));
         break;
@@ -1093,7 +1198,6 @@ const UI = (() => {
       Game.setRoofName(input.value);
       el.modalOverlay.hidden = true;
       render();
-      if (first && !lockState) toast('اضغط على حوض فارغ لتزرع أول نعناعة 🌿', 3500);
     };
     $('nameOk').onclick = done;
     input.onkeydown = e => { if (e.key === 'Enter') done(); };
@@ -1240,7 +1344,7 @@ const UI = (() => {
       'toast', 'factCard', 'btnShop', 'btnSeeds', 'btnUpgrade', 'shopBadge', 'sheetOverlay', 'sheetTitle', 'sheetBody',
       'sheetClose', 'modalOverlay', 'modal', 'fx', 'pigeonLane', 'levelPill', 'levelNum', 'xpFill', 'energyPill',
       'energyText', 'energyFill', 'upgradeBadge', 'scarecrow', 'mapBtn', 'birdLayer', 'app', 'lockScreen',
-      'weatherChip', 'boardBtn', 'boardBadge', 'carrier', 'btnKitchen', 'btnStall', 'kitchenBadge'].forEach(id => { el[id] = $(id); });
+      'weatherChip', 'boardBtn', 'boardBadge', 'carrier', 'btnKitchen', 'btnStall', 'kitchenBadge', 'decorLayer'].forEach(id => { el[id] = $(id); });
 
     el.plots.addEventListener('click', e => {
       const b = e.target.closest('.plot');
@@ -1310,6 +1414,11 @@ const UI = (() => {
     Kitchen.init();
     Stall.init();
     Cat.init();
+    Sound.init();
+    Tutorial.init();
+
+    // تشغيل اللعبة بدون إنترنت وتثبيتها على الشاشة الرئيسية
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
   return {
