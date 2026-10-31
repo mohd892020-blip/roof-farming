@@ -168,7 +168,7 @@ const DATA = (() => {
 
   return {
     SAVE_KEY: 'rooftop_save_v1',
-    SAVE_VERSION: 5,
+    SAVE_VERSION: 6,
 
     MIN, HOUR, DAY,
 
@@ -321,6 +321,45 @@ const DATA = (() => {
       warnedDay: '',
     },
     WEEKDAYS: ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+
+    // البداية السريعة: أول 5 نباتات تجهز بدقيقة، وتحتاج سقاية الزراعة فقط
+    QUICK_START: { COUNT: 5, MS: 60 * 1000 },
+
+    // مطبخ السطح: وصفات ثابتة، والمكونات تُخصم فقط عند انتهاء الطبخ
+    RECIPES: {
+      tea: { id: 'tea', name: 'شاي بالنعناع', icon: '🍵', vessel: '🫖', level: 1, needs: { mint: 2 }, price: 36, action: 'stir', taps: 8 },
+      sauce: { id: 'sauce', name: 'صلصة بندورة', icon: '🥫', vessel: '🍲', level: 2, needs: { tomato: 1, basil: 1 }, price: 100, action: 'mash', taps: 10 },
+      hot: { id: 'hot', name: 'شطة حارة', icon: '🌶️', vessel: '🫙', level: 4, needs: { pepper: 2 }, price: 270, action: 'mash', taps: 10 },
+      makdous: { id: 'makdous', name: 'مكدوس', icon: '🍆', vessel: '🫙', level: 6, needs: { eggplant: 1, pepper: 1 }, price: 375, action: 'stir', taps: 10 },
+      zaatar: { id: 'zaatar', name: 'خلطة زعتر', icon: '🌿', vessel: '🥣', level: 8, needs: { thyme: 2 }, price: 780, action: 'mash', taps: 12 },
+      sage: { id: 'sage', name: 'شاي ميرمية', icon: '☕', vessel: '🫖', level: 10, needs: { sage: 1, mint: 1 }, price: 470, action: 'stir', taps: 10 },
+      lemonade: { id: 'lemonade', name: 'ليموناضة', icon: '🍋', vessel: '🫙', level: 12, needs: { lemon: 1, mint: 2 }, price: 260, action: 'squeeze', taps: 12 },
+    },
+    RECIPE_ORDER: ['tea', 'sauce', 'hot', 'makdous', 'zaatar', 'sage', 'lemonade'],
+    COOK_ACTIONS: {
+      stir: { icon: '🥄', label: 'حرّك' },
+      mash: { icon: '🥣', label: 'اهرس' },
+      squeeze: { icon: '🍋', label: 'اعصر' },
+    },
+
+    // بسطة الحارة: الزبون يطلب صنفاً من مخزنك ويدفع إكرامية ثابتة
+    STALL: {
+      TIP: 1.25,
+      CUSTOMERS: ['👩', '👨', '👵', '👴', '🧒', '👧', '🧕', '🧔'],
+    },
+
+    // قطة السطح: القلوب تزيد فقط ولا تنقص أبداً، والزينة مكافآت ثابتة
+    CAT: {
+      DEFAULT_NAME: 'مشمش',
+      MAX_NAME: 12,
+      DAY_HEARTS: 10,
+      THROWS: 5,
+      MILESTONES: [
+        { hearts: 5, item: 'bow', name: 'فيونكة حمراء', icon: '🎀' },
+        { hearts: 15, item: 'bell', name: 'جرس صغير', icon: '🔔' },
+        { hearts: 30, item: 'hat', name: 'قبعة قش', icon: '👒' },
+      ],
+    },
 
     // خريطة المراحل
     MAP_LEVELS: 20,

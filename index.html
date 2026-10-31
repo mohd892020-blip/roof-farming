@@ -198,6 +198,13 @@
       <button class="nav-btn primary" id="btnSeeds">
         <span class="nav-icon">🌱</span><span>بذور</span>
       </button>
+      <button class="nav-btn" id="btnKitchen">
+        <span class="nav-icon">🍳</span><span>مطبخ</span>
+        <span class="badge dot" id="kitchenBadge" hidden></span>
+      </button>
+      <button class="nav-btn" id="btnStall">
+        <span class="nav-icon">🛒</span><span>بسطة</span>
+      </button>
       <button class="nav-btn" id="btnUpgrade">
         <span class="nav-icon">🔨</span><span>ترقية</span>
         <span class="badge dot" id="upgradeBadge" hidden></span>
@@ -228,6 +235,24 @@
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
 
+    <!-- مطبخ السطح -->
+    <div class="fun-overlay" id="kitchenOverlay" hidden>
+      <header class="map-head">
+        <div class="map-title"><h2 id="kitchenTitle">مطبخ السطح 🍳</h2></div>
+        <button class="sheet-close" id="kitchenClose" aria-label="إغلاق">✕</button>
+      </header>
+      <div class="fun-body" id="kitchenBody"></div>
+    </div>
+
+    <!-- بسطة الحارة -->
+    <div class="fun-overlay" id="stallOverlay" hidden>
+      <header class="map-head">
+        <div class="map-title"><h2>بسطة الحارة 🛒</h2></div>
+        <button class="sheet-close" id="stallClose" aria-label="إغلاق">✕</button>
+      </header>
+      <div class="fun-body stall-body" id="stallBody"></div>
+    </div>
+
     <!-- خريطة المراحل -->
     <div class="map-overlay" id="mapOverlay" hidden>
       <header class="map-head">
@@ -256,5 +281,8 @@
   <script src="ui.js" defer></script>
   <script src="birds.js" defer></script>
   <script src="map.js" defer></script>
+  <script src="kitchen.js" defer></script>
+  <script src="stall.js" defer></script>
+  <script src="cat.js" defer></script>
 </body>
 </html>

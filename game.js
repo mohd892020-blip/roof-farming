@@ -65,6 +65,7 @@ const Game = (() => {
     let r = DATA.WEATHER[state.weather.type].growth;
     if (crop && crop.bird) r *= DATA.BIRDS.SLOW;
     if (crop && crop.pest && !away) r *= DATA.PESTS.SLOW;
+    if (crop && crop.quick) r *= plant(crop.plantId).growMs / DATA.QUICK_START.MS;
     return r;
   }
 
@@ -122,7 +123,7 @@ const Game = (() => {
     });
     const unlocked = DATA.PLANT_ORDER.map(plant).filter(isUnlocked);
     const cheapest = Math.min(...unlocked.map(p => p.seedPrice));
-    const storage = Object.keys(state.crops).reduce((a, id) => a + state.crops[id] * sellPriceFor(id), 0);
+    const storage = goods().reduce((a, g) => a + g.count * g.price, 0);
     const hasSeeds = Object.keys(state.seeds).length > 0;
     const canPlant = empty > 0 && (hasSeeds || state.coins + storage >= cheapest);
     const outOfEnergy = state.energy < DATA.ENERGY_WATER;
@@ -467,7 +468,8 @@ const Game = (() => {
     };
   }
 
-  const cropCount = () => Object.values(state.crops).reduce((a, b) => a + b, 0);
+  const sum = obj => Object.values(obj).reduce((a, b) => a + b, 0);
+  const cropCount = () => sum(state.crops) + sum(state.products);
   const isUnlocked = p => level() >= p.unlockLevel;
   const tierOf = i => DATA.TIERS[state.plots[i].tier];
 
@@ -506,11 +508,14 @@ const Game = (() => {
     if (!state.seeds[plantId]) return { ok: false, reason: 'noSeeds' };
     state.seeds[plantId]--;
     if (!state.seeds[plantId]) delete state.seeds[plantId];
+    const quick = state.stats.quickUsed < DATA.QUICK_START.COUNT;
+    if (quick) state.stats.quickUsed++;
     plot.crop = {
       plantId,
       progress: 0,
-      nextThirstAt: waterInterval(p, plot),
+      nextThirstAt: quick ? p.growMs : waterInterval(p, plot), // البداية السريعة: سقاية الزراعة فقط
       thirsty: true, // تحتاج سقاية عند الزراعة (إلا إذا سقاها الرشاش أو المطر)
+      quick,
       harvests: 0,
       bird: 0,
       pest: 0,
@@ -520,7 +525,7 @@ const Game = (() => {
     autoWater(plot, i);
     const autoWatered = !plot.crop.thirsty;
     commit();
-    return { ok: true, sprinkled: autoWatered, rained: autoWatered && !plot.sprinkler };
+    return { ok: true, quick, sprinkled: autoWatered, rained: autoWatered && !plot.sprinkler };
   }
 
   function water(i) {
@@ -558,6 +563,7 @@ const Game = (() => {
       crop.thirsty = true;
       crop.pest = 0;
       crop.fert = false;
+      crop.quick = false;
       autoWater(plot, i);
     } else {
       plot.crop = null;
@@ -593,8 +599,97 @@ const Game = (() => {
       const r = sell(id, state.crops[id]);
       if (r.ok) coins += r.coins;
     }
+    for (const id of Object.keys(state.products)) {
+      const r = sellProduct(id, state.products[id]);
+      if (r.ok) coins += r.coins;
+    }
     return coins > 0 ? { ok: true, coins } : { ok: false, reason: 'none' };
   }
+
+  /* ---------- مطبخ السطح ---------- */
+
+  const recipeUnlocked = r => level() >= r.level;
+  const canCook = r => recipeUnlocked(r) && Object.keys(r.needs).every(id => (state.crops[id] || 0) >= r.needs[id]);
+
+  function cook(id) {
+    const r = DATA.RECIPES[id];
+    if (!r || !canCook(r)) return { ok: false };
+    for (const pid of Object.keys(r.needs)) {
+      state.crops[pid] -= r.needs[pid];
+      if (!state.crops[pid]) delete state.crops[pid];
+    }
+    state.products[id] = (state.products[id] || 0) + 1;
+    state.stats.cooked++;
+    commit();
+    return { ok: true, recipe: r };
+  }
+
+  function sellProduct(id, n = 1) {
+    const have = state.products[id] || 0;
+    n = Math.min(n, have);
+    if (n <= 0) return { ok: false, reason: 'none' };
+    const coins = DATA.RECIPES[id].price * n;
+    state.products[id] = have - n;
+    if (!state.products[id]) delete state.products[id];
+    state.coins += coins;
+    state.stats.sold += n;
+    state.stats.earned += coins;
+    commit();
+    return { ok: true, coins };
+  }
+
+  /* ---------- بسطة الحارة ---------- */
+
+  // كل ما في المخزن من محصول ومنتجات
+  function goods() {
+    const list = [];
+    DATA.PLANT_ORDER.forEach(id => {
+      if (state.crops[id]) list.push({ kind: 'crop', id, name: plant(id).name, count: state.crops[id], price: sellPriceFor(id) });
+    });
+    DATA.RECIPE_ORDER.forEach(id => {
+      if (state.products[id]) list.push({ kind: 'product', id, name: DATA.RECIPES[id].name, count: state.products[id], price: DATA.RECIPES[id].price });
+    });
+    return list;
+  }
+
+  const stallPrice = g => Math.round(g.price * DATA.STALL.TIP);
+
+  function stallSell(kind, id) {
+    const g = goods().find(x => x.kind === kind && x.id === id);
+    if (!g) return { ok: false };
+    const store = kind === 'crop' ? state.crops : state.products;
+    store[id]--;
+    if (!store[id]) delete store[id];
+    const coins = stallPrice(g);
+    state.coins += coins;
+    state.stats.sold++;
+    state.stats.stallSold++;
+    state.stats.earned += coins;
+    commit();
+    return { ok: true, coins };
+  }
+
+  /* ---------- قطة السطح ---------- */
+
+  function setCatName(name) {
+    const clean = String(name || '').replace(/\s+/g, ' ').trim().slice(0, DATA.CAT.MAX_NAME);
+    state.cat.name = clean || DATA.CAT.DEFAULT_NAME;
+    commit();
+  }
+
+  // القلوب تزيد فقط، بحد أقصى يومي حتى لا تتحول إلى واجب
+  function catHeart(now = Date.now()) {
+    const c = state.cat;
+    const key = dayKey(now);
+    if (c.day !== key) { c.day = key; c.dayHearts = 0; }
+    if (c.dayHearts >= DATA.CAT.DAY_HEARTS) return { gained: false };
+    c.dayHearts++;
+    c.hearts++;
+    commit();
+    return { gained: true, milestone: DATA.CAT.MILESTONES.find(m => m.hearts === c.hearts) || null };
+  }
+
+  const catItems = () => DATA.CAT.MILESTONES.filter(m => state.cat.hearts >= m.hearts);
 
   function buyTool(toolId) {
     const t = DATA.TOOLS[toolId];
@@ -661,6 +756,7 @@ const Game = (() => {
     isFirstRun, cropInfo, cropCount, sellPriceFor, levelInfo, level, unlocksAt, isUnlocked,
     tierOf, nextTier, nextPlot, dayKey, takeNotices, setPaused, restInfo,
     fulfillOrder, orderReward, canFulfill, pigeonWaiting, feedPigeon, claimLogin, removePest, fertilize,
+    recipeUnlocked, canCook, cook, sellProduct, goods, stallPrice, stallSell, setCatName, catHeart, catItems,
     get weather() { return DATA.WEATHER[state.weather.type]; },
     buySeed, plantSeed, water, harvest, sell, sellAll, setRoofName,
     buyTool, installTool, unlockPlot, upgradePlot, shooBird, guardProgress,

@@ -1411,3 +1411,145 @@ button {
 @keyframes rainFall { from { background-position: 0 0, 0 0; } to { background-position: -16px 90px, -22px 130px; } }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes crawl { 0%, 100% { transform: translateX(0) scaleX(1); } 45% { transform: translateX(14px) scaleX(1); } 50% { transform: translateX(14px) scaleX(-1); } 95% { transform: translateX(0) scaleX(-1); } }
+
+/* ---------- الشريط السفلي بخمسة أزرار ---------- */
+.bottom-bar { grid-template-columns: repeat(5, 1fr); gap: 6px; padding-inline: 8px; }
+.nav-btn { min-height: 58px; font-size: 14px; }
+.nav-icon { font-size: 24px; }
+
+/* ---------- شاشات المطبخ والبسطة ---------- */
+.fun-overlay {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 44;
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+  animation: fade .2s ease;
+}
+.fun-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px calc(20px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+
+/* المطبخ */
+.needs { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 4px; }
+.need { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; font-weight: 800; color: #a86a1e; }
+.need.ok { color: var(--green-dark); }
+.cook-stage { display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 12px; text-align: center; }
+.pot {
+  width: 150px; height: 150px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff, #fbeed6);
+  font-size: 88px;
+  line-height: 1;
+  box-shadow: 0 5px 0 #ead7b8;
+  transform-origin: 50% 90%;
+}
+.pot.wiggle { animation: wiggle .4s ease; }
+.cook-hint { margin: 0; font-size: 18px; font-weight: 800; color: var(--ink-soft); }
+.ing-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.ing {
+  width: 72px; height: 72px;
+  padding: 6px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 4px 0 #dccbaa;
+}
+.ing svg, .ing img { width: 100%; height: 100%; display: block; }
+.cook-meter { width: 100%; max-width: 280px; }
+.cook-meter .meter { display: block; height: 16px; }
+.cook-act { max-width: 300px; min-height: 68px; font-size: 24px; }
+.cook-cancel { min-height: 48px; font-size: 15px; }
+.cook-done { display: flex; flex-direction: column; align-items: center; }
+.cook-done h3 { margin: 6px 0 2px; font-size: 22px; font-weight: 800; }
+.cook-done p { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink-soft); line-height: 1.7; }
+.cook-product { font-size: 96px; line-height: 1.15; animation: pop .5s ease; }
+.cook-row { display: flex; gap: 10px; width: 100%; max-width: 340px; }
+.cook-row .btn { flex: 1; }
+
+/* البسطة */
+.stall-body { display: flex; flex-direction: column; padding: 0; background: #fbeed6; }
+.stall-street { position: relative; flex: none; height: 250px; overflow: hidden; background: linear-gradient(#bfe4f6, #e9f4e6 70%, #e9d6b2 70%); }
+.stall-awning {
+  height: 34px;
+  background: repeating-linear-gradient(90deg, #e2574c 0 34px, #fff8ec 34px 68px);
+  border-radius: 0 0 14px 14px;
+  box-shadow: 0 4px 0 rgba(0,0,0,.12);
+}
+.customer { position: absolute; left: 0; right: 0; bottom: 8px; display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; animation: customerIn .45s ease; }
+.customer.leaving { animation: customerOut .7s ease forwards; }
+.customer-face { font-size: 76px; line-height: 1; }
+.speech {
+  display: flex; align-items: center; gap: 8px;
+  max-width: 90%;
+  padding: 8px 16px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 3px 0 rgba(0,0,0,.12);
+  font-size: 19px;
+  font-weight: 800;
+}
+.speech.shake { animation: shake .45s ease; }
+.speech-ic { width: 40px; height: 40px; flex: none; display: grid; place-items: center; font-size: 30px; }
+.speech-ic svg { width: 100%; height: 100%; }
+.stall-counter { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px calc(18px + env(safe-area-inset-bottom)); border-top: 8px solid var(--wood); background: #f6e3c0; }
+.stall-tip { margin: 0 0 10px; text-align: center; font-size: 15px; font-weight: 800; color: var(--ink-soft); }
+.shelf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.shelf-item {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  min-height: 104px;
+  padding: 8px 4px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 0 #dcc397;
+}
+.shelf-item:active { transform: translateY(3px); box-shadow: 0 1px 0 #dcc397; }
+.shelf-ic { width: 48px; height: 48px; display: grid; place-items: center; font-size: 36px; }
+.shelf-ic svg { width: 100%; height: 100%; }
+.shelf-name { font-size: 14px; font-weight: 800; line-height: 1.25; }
+.shelf-count { font-size: 13px; font-weight: 800; color: var(--green-dark); }
+.stall-empty { text-align: center; color: var(--ink-soft); }
+.stall-empty .big-emoji { display: block; margin-top: 50px; font-size: 64px; }
+.stall-empty h3 { margin: 8px 0 4px; font-size: 22px; font-weight: 800; color: var(--ink); }
+.stall-empty p { margin: 0; padding: 0 20px; font-size: 16px; font-weight: 700; line-height: 1.7; }
+
+/* ---------- قطة السطح ---------- */
+.cat {
+  position: absolute;
+  left: 0;
+  z-index: 5;
+  width: 60px; height: 48px;
+  padding: 0;
+}
+.cat-sprite { display: block; width: 100%; height: 100%; overflow: visible; }
+.cat.face-right .cat-sprite { transform: scaleX(-1); }
+.cat-tail { transform-box: fill-box; transform-origin: 0 100%; animation: tailSway 2s ease-in-out infinite; }
+.cat .eyes-closed, .cat-menu-sprite .eyes-closed { display: none; }
+.cat.pose-sleep .eyes-open, .cat.pose-eat .eyes-open, .cat.pose-happy .eyes-open { display: none; }
+.cat.pose-sleep .eyes-closed, .cat.pose-eat .eyes-closed, .cat.pose-happy .eyes-closed { display: inline; }
+.cat.pose-walk .legs-front { animation: catLeg .32s ease-in-out infinite alternate; }
+.cat.pose-walk .legs-back { animation: catLeg .32s ease-in-out infinite alternate-reverse; }
+.legs-front, .legs-back { transform-box: fill-box; transform-origin: 50% 0; }
+.cat.pose-sleep .cat-sprite { animation: catBreath 2.6s ease-in-out infinite; transform-origin: 50% 100%; }
+.cat.pose-sleep.face-right .cat-sprite { animation-name: catBreathRight; }
+.cat.pose-sleep::after { content: '💤'; position: absolute; top: -14px; left: 4px; font-size: 16px; animation: float 2.4s ease-in-out infinite; }
+.cat-head { transform-box: fill-box; transform-origin: 70% 90%; }
+.cat.pose-lick .cat-head, .cat.pose-eat .cat-head { animation: catNod .5s ease-in-out infinite alternate; }
+.cat.pose-happy .cat-sprite { animation: catJump .55s ease-in-out infinite; }
+.cat.pose-happy.face-right .cat-sprite { animation-name: catJumpRight; }
+.cat-bow, .cat-bell, .cat-hat { display: none; }
+.has-bow .cat-bow, .has-bell .cat-bell, .has-hat .cat-hat { display: inline; }
+.cat-bowl, .cat-ball { position: absolute; z-index: 4; font-size: 22px; line-height: 1; pointer-events: none; }
+.cat-ball { left: 0; }
+.cat-catcher { position: absolute; inset: 0; z-index: 14; cursor: pointer; }
+.cat-menu-sprite { width: 110px; height: 88px; margin: 0 auto 4px; }
+.cat-actions { display: flex; flex-direction: column; gap: 8px; }
+
+@keyframes customerIn { from { transform: translateX(-70%); opacity: 0; } }
+@keyframes customerOut { to { transform: translateX(80%); opacity: 0; } }
+@keyframes tailSway { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(10deg); } }
+@keyframes catLeg { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+@keyframes catBreath { 0%, 100% { transform: scaleY(.84); } 50% { transform: scaleY(.9); } }
+@keyframes catBreathRight { 0%, 100% { transform: scaleX(-1) scaleY(.84); } 50% { transform: scaleX(-1) scaleY(.9); } }
+@keyframes catNod { from { transform: rotate(0); } to { transform: rotate(-12deg); } }
+@keyframes catJump { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes catJumpRight { 0%, 100% { transform: scaleX(-1) translateY(0); } 50% { transform: scaleX(-1) translateY(-10px); } }

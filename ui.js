@@ -272,6 +272,7 @@ const UI = (() => {
     el.boardBadge.hidden = !ready;
     el.boardBadge.textContent = ready;
     el.carrier.hidden = !Game.pigeonWaiting() || !!lockState || carrierLeaving;
+    el.kitchenBadge.hidden = !DATA.RECIPE_ORDER.some(id => Game.canCook(DATA.RECIPES[id]));
     el.roofName.textContent = s.roofName || DATA.DEFAULT_ROOF_NAME;
     const n = Game.cropCount();
     el.shopBadge.hidden = n === 0;
@@ -341,7 +342,8 @@ const UI = (() => {
     const p = DATA.PLANTS[plantId];
     render();
     puff(plotEl(i));
-    toast(r.rained ? `زرعت ${p.name}! المطر سقاها 🌧️` : r.sprinkled ? `زرعت ${p.name}! الرشاش سقاها 💦` : `زرعت ${p.name}! الآن اسقِها 💧`);
+    const msg = r.rained ? `زرعت ${p.name}! المطر سقاها 🌧️` : r.sprinkled ? `زرعت ${p.name}! الرشاش سقاها 💦` : `زرعت ${p.name}! الآن اسقِها 💧`;
+    toast(r.quick ? `${msg} ⚡ بتجهز بدقيقة` : msg, r.quick ? 3200 : 2400);
     if (mode.type === 'plant' && !Game.state.seeds[plantId]) setMode({ type: 'none' });
     else if (mode.type === 'plant') updateModeBanner();
   }
@@ -527,6 +529,8 @@ const UI = (() => {
     if (sheet) closeSheet();
     setMode({ type: 'none' });
     LevelMap.close();
+    Kitchen.close();
+    Stall.close();
     const t = Parent.lockText(reason);
     const r = Game.restInfo();
     const next = r.nextMs != null ? `<p class="rest-next">🌱 أقرب نبتة تجهز بعد ${fmtLong(r.nextMs)}</p>` : '';
@@ -543,7 +547,7 @@ const UI = (() => {
   let wasResting = false;
 
   function checkRest() {
-    if (lockState || Game.isFirstRun() || Parent.panelOpen) return;
+    if (lockState || Game.isFirstRun() || Parent.panelOpen || Kitchen.isOpen || Stall.isOpen) return;
     const r = Game.restInfo();
     if (!r.resting) { wasResting = false; return; }
     if (wasResting || !el.modalOverlay.hidden || sheet || mode.type !== 'none') return;
@@ -686,6 +690,7 @@ const UI = (() => {
      ===================================================== */
 
   function setMode(m) {
+    if (mode.type === 'catPlay' && m.type !== 'catPlay') Cat.stopPlay();
     mode = m;
     el.scene.classList.toggle('mode-water', m.type === 'water');
     el.scene.classList.toggle('mode-plant', m.type === 'plant');
@@ -701,6 +706,8 @@ const UI = (() => {
     el.modeBanner.hidden = false;
     if (mode.type === 'water') {
       el.modeText.textContent = '💧 اضغط على النبتة العطشانة';
+    } else if (mode.type === 'catPlay') {
+      el.modeText.textContent = `🧶 اضغط على السطح لترمي الكرة (باقي ${Cat.throwsLeft})`;
     } else if (mode.type === 'upgrade') {
       el.modeText.textContent = '🔨 اختر حوضاً لترقيته';
     } else if (mode.type === 'place') {
@@ -809,7 +816,8 @@ const UI = (() => {
     } else {
       const crops = Game.state.crops;
       const ids = DATA.PLANT_ORDER.filter(id => crops[id]);
-      if (!ids.length) {
+      const prods = DATA.RECIPE_ORDER.filter(id => Game.state.products[id]);
+      if (!ids.length && !prods.length) {
         body += '<div class="empty-state"><span class="big-emoji">🧺</span>المخزن فارغ<br>احصد نباتاتك لتبيعها هنا</div>';
       } else {
         let total = 0;
@@ -826,6 +834,20 @@ const UI = (() => {
             </div>
             <div class="actions">
               <button class="btn gold" data-act="sell1" data-id="${id}">بيع واحدة</button>
+            </div>
+          </div>`;
+        }).join('') + prods.map(id => {
+          const rc = DATA.RECIPES[id];
+          const n = Game.state.products[id];
+          total += n * rc.price;
+          return `<div class="item-card">
+            <div class="ic emoji">${rc.icon}</div>
+            <div class="info">
+              <h3>${rc.name} × ${n}</h3>
+              <div class="meta"><span>الواحدة بـ <i class="coin sm"></i> ${rc.price}</span></div>
+            </div>
+            <div class="actions">
+              <button class="btn gold" data-act="sellProd1" data-id="${id}">بيع واحدة</button>
             </div>
           </div>`;
         }).join('') + '</div>';
@@ -1019,6 +1041,9 @@ const UI = (() => {
         closeSheet();
         setMode({ type: 'upgrade' });
         break;
+      case 'sellProd1':
+        doSell(t, () => Game.sellProduct(id, 1));
+        break;
       case 'sell1':
         doSell(t, () => Game.sell(id, 1));
         break;
@@ -1032,14 +1057,19 @@ const UI = (() => {
     const from = btn.getBoundingClientRect();
     const r = action();
     if (!r.ok) return;
+    coinFx(from, r.coins);
+    render();
+  }
+
+  // طيران العملات إلى العداد بعد أي بيع
+  function coinFx(from, coins) {
     coinHold++;
     const target = Game.state.coins;
     fly('<span class="coin"></span>', from, el.coinsPill, {
-      count: Math.min(8, Math.max(3, Math.round(r.coins / 15))),
+      count: Math.min(8, Math.max(3, Math.round(coins / 15))),
       onArrive: () => { coinHold--; countCoinsTo(target); },
     });
-    floatText(`+${r.coins}`, from);
-    render();
+    floatText(`+${coins}`, from);
   }
 
   /* =====================================================
@@ -1210,7 +1240,7 @@ const UI = (() => {
       'toast', 'factCard', 'btnShop', 'btnSeeds', 'btnUpgrade', 'shopBadge', 'sheetOverlay', 'sheetTitle', 'sheetBody',
       'sheetClose', 'modalOverlay', 'modal', 'fx', 'pigeonLane', 'levelPill', 'levelNum', 'xpFill', 'energyPill',
       'energyText', 'energyFill', 'upgradeBadge', 'scarecrow', 'mapBtn', 'birdLayer', 'app', 'lockScreen',
-      'weatherChip', 'boardBtn', 'boardBadge', 'carrier'].forEach(id => { el[id] = $(id); });
+      'weatherChip', 'boardBtn', 'boardBadge', 'carrier', 'btnKitchen', 'btnStall', 'kitchenBadge'].forEach(id => { el[id] = $(id); });
 
     el.plots.addEventListener('click', e => {
       const b = e.target.closest('.plot');
@@ -1221,6 +1251,8 @@ const UI = (() => {
     el.btnSeeds.onclick = () => openSheet('seeds');
     el.btnShop.onclick = () => openSheet('shop');
     el.btnUpgrade.onclick = () => openSheet('upgrade');
+    el.btnKitchen.onclick = () => { setMode({ type: 'none' }); Kitchen.show(); };
+    el.btnStall.onclick = () => { setMode({ type: 'none' }); Stall.show(); };
     el.sheetClose.onclick = closeSheet;
     el.sheetOverlay.addEventListener('click', e => { if (e.target === el.sheetOverlay) closeSheet(); });
     el.sheetBody.addEventListener('click', onSheetClick);
@@ -1275,11 +1307,14 @@ const UI = (() => {
 
     schedulePigeon();
     Birds.init();
+    Kitchen.init();
+    Stall.init();
+    Cat.init();
   }
 
   return {
     start, render, toast, Art, unlockLabel, plotEl, fxPoint, el, confetti,
-    showModal, closeModal, replay, escapeHtml, refreshLock,
+    showModal, closeModal, replay, escapeHtml, refreshLock, fly, floatText, coinFx, setMode, updateModeBanner,
   };
 })();
 

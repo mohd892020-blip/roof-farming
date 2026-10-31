@@ -25,8 +25,10 @@ const SaveStore = (() => {
       scarecrow: false,        // الفزاعة: مكافأة حارس السطح
       seeds: { ...DATA.START_SEEDS },
       crops: {},               // المخزن: { plantId: count }
+      products: {},            // منتجات المطبخ: { recipeId: count }
+      cat: { name: '', hearts: 0, day: '', dayHearts: 0 },
       plots,
-      stats: { harvested: {}, sold: 0, earned: 0, birdsShooed: 0 },
+      stats: { harvested: {}, sold: 0, earned: 0, birdsShooed: 0, quickUsed: 0, cooked: 0, stallSold: 0 },
       parent: freshParent(),   // إعدادات الأهل
       playLog: {},             // وقت اللعب الفعلي: { 'YYYY-MM-DD': ms }
       weather: { day: '', type: 'sunny', rained: [] }, // طقس اليوم، والأحواض التي سقاها المطر
@@ -55,6 +57,15 @@ const SaveStore = (() => {
     s.scarecrow = !!s.scarecrow;
     s.seeds = cleanCounts(s.seeds);
     s.crops = cleanCounts(s.crops);
+    s.products = cleanCounts(s.products);
+    for (const id of Object.keys(s.products)) if (!DATA.RECIPES[id]) delete s.products[id];
+    const cat = s.cat && typeof s.cat === 'object' ? s.cat : {};
+    s.cat = {
+      name: typeof cat.name === 'string' ? cat.name.slice(0, DATA.CAT.MAX_NAME) : '',
+      hearts: safeInt(cat.hearts, 0),
+      day: typeof cat.day === 'string' ? cat.day : '',
+      dayHearts: safeInt(cat.dayHearts, 0),
+    };
     s.stats = { ...base.stats, ...(s.stats || {}) };
     if (typeof s.roofName !== 'string') s.roofName = '';
     s.parent = cleanParent(s.parent);
@@ -89,6 +100,7 @@ const SaveStore = (() => {
         c.bird = 0; // العصافير تطير عند إغلاق اللعبة
         c.pest = Number.isFinite(c.pest) ? c.pest : 0;
         c.fert = !!c.fert;
+        c.quick = !!c.quick;
       }
       return plot;
     });
@@ -137,6 +149,12 @@ const SaveStore = (() => {
     // v2 → v3: العصافير والشبكات والفزاعة (قيم افتراضية من normalize)
     // v3 → v4: إعدادات الأهل وسجل وقت اللعب (قيم افتراضية من normalize)
     // v4 → v5: الطقس، طلبات الجيران، الحمام الزاجل، مكافأة الدخول، الآفات، السماد، المظلة
+    // v5 → v6: البداية السريعة، المطبخ، البسطة، القطة. اللاعب القديم لا يأخذ بداية سريعة إضافية
+    if (v < 6) {
+      d.stats = d.stats && typeof d.stats === 'object' ? d.stats : {};
+      const done = Object.values(d.stats.harvested || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+      d.stats.quickUsed = Math.min(DATA.QUICK_START.COUNT, done);
+    }
     return normalize(d, now);
   }
 
