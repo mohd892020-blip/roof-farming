@@ -6,7 +6,7 @@
 
 const SaveStore = (() => {
   function freshPlot(i) {
-    return { id: i, tier: 'wood', sprinkler: false, net: false, crop: null };
+    return { id: i, tier: 'wood', sprinkler: false, net: false, umbrella: false, crop: null };
   }
 
   function fresh(now) {
@@ -29,6 +29,10 @@ const SaveStore = (() => {
       stats: { harvested: {}, sold: 0, earned: 0, birdsShooed: 0 },
       parent: freshParent(),   // إعدادات الأهل
       playLog: {},             // وقت اللعب الفعلي: { 'YYYY-MM-DD': ms }
+      weather: { day: '', type: 'sunny', rained: [] }, // طقس اليوم، والأحواض التي سقاها المطر
+      orders: [],              // طلبات الجيران
+      pigeon: { lastFedDay: '', visits: 0 },
+      login: { days: 0, lastDay: '' },
     };
   }
 
@@ -55,6 +59,18 @@ const SaveStore = (() => {
     if (typeof s.roofName !== 'string') s.roofName = '';
     s.parent = cleanParent(s.parent);
     s.playLog = cleanCounts(s.playLog);
+    const w = s.weather && typeof s.weather === 'object' ? s.weather : {};
+    s.weather = {
+      day: typeof w.day === 'string' ? w.day : '',
+      type: DATA.WEATHER[w.type] ? w.type : 'sunny',
+      rained: Array.isArray(w.rained) ? w.rained.filter(Number.isInteger) : [],
+    };
+    s.orders = (Array.isArray(s.orders) ? s.orders : [])
+      .filter(o => o && DATA.PLANTS[o.plantId] && Number.isInteger(o.who) && DATA.ORDERS.NEIGHBORS[o.who])
+      .slice(0, DATA.ORDERS.SLOTS)
+      .map(o => ({ who: o.who, plantId: o.plantId, qty: Math.max(1, safeInt(o.qty, 1)), done: !!o.done }));
+    s.pigeon = { lastFedDay: (s.pigeon && typeof s.pigeon.lastFedDay === 'string') ? s.pigeon.lastFedDay : '', visits: safeInt(s.pigeon && s.pigeon.visits, 0) };
+    s.login = { days: safeInt(s.login && s.login.days, 0), lastDay: (s.login && typeof s.login.lastDay === 'string') ? s.login.lastDay : '' };
 
     if (!Array.isArray(s.plots) || s.plots.length === 0) s.plots = base.plots;
     s.plots = s.plots.slice(0, DATA.MAX_PLOTS).map((p, i) => {
@@ -62,6 +78,7 @@ const SaveStore = (() => {
       if (!DATA.TIERS[plot.tier]) plot.tier = 'wood';
       plot.sprinkler = !!plot.sprinkler;
       plot.net = !!plot.net;
+      plot.umbrella = !!plot.umbrella;
       if (plot.crop && !DATA.PLANTS[plot.crop.plantId]) plot.crop = null; // نبتة غير معروفة
       if (plot.crop) {
         const c = plot.crop;
@@ -70,6 +87,8 @@ const SaveStore = (() => {
         c.thirsty = !!c.thirsty;
         c.harvests = safeInt(c.harvests, 0);
         c.bird = 0; // العصافير تطير عند إغلاق اللعبة
+        c.pest = Number.isFinite(c.pest) ? c.pest : 0;
+        c.fert = !!c.fert;
       }
       return plot;
     });
@@ -117,6 +136,7 @@ const SaveStore = (() => {
     if (v < 2) { d.energy = DATA.ENERGY_MAX; d.energyDay = ''; }
     // v2 → v3: العصافير والشبكات والفزاعة (قيم افتراضية من normalize)
     // v3 → v4: إعدادات الأهل وسجل وقت اللعب (قيم افتراضية من normalize)
+    // v4 → v5: الطقس، طلبات الجيران، الحمام الزاجل، مكافأة الدخول، الآفات، السماد، المظلة
     return normalize(d, now);
   }
 

@@ -168,7 +168,7 @@ const DATA = (() => {
 
   return {
     SAVE_KEY: 'rooftop_save_v1',
-    SAVE_VERSION: 4,
+    SAVE_VERSION: 5,
 
     MIN, HOUR, DAY,
 
@@ -225,10 +225,66 @@ const DATA = (() => {
     // الأدوات (السماد والمظلة تأتي مع المرحلة 4)
     TOOLS: {
       sprinkler: { id: 'sprinkler', name: 'رشاش ماء آلي', desc: 'تركّبه على حوض، فيسقيه لوحده دائماً', price: 200, level: 3, icon: '💦' },
+      umbrella: { id: 'umbrella', name: 'مظلة', desc: 'تركّبها على حوض، فيعطش نص المرات', price: 120, level: 5, icon: '⛱️' },
+      fertilizer: { id: 'fertilizer', name: 'سماد', desc: 'يسرّع النمو الباقي 25% (مرة لكل نبتة)', price: 30, level: 2, icon: '🧪', use: true, energy: 2, boost: 0.25 },
       // الشبكة لا تُشترى: مكافأة لطرد العصافير
       net: { id: 'net', name: 'شبكة حماية', desc: 'تغطي نبتة فلا تقف عليها العصافير', reward: true, level: 1, icon: '🥅' },
     },
-    TOOL_ORDER: ['sprinkler', 'net'],
+    TOOL_ORDER: ['fertilizer', 'sprinkler', 'umbrella', 'net'],
+    UMBRELLA_WATER_MULT: 2,  // المظلة: السقاية كل ضعف المدة
+
+    // الطقس: يُختار مرة واحدة كل يوم (اليوم يبدأ الساعة 6 صباحاً)
+    WEATHER: {
+      sunny: { id: 'sunny', name: 'مشمس', icon: '☀️', weight: 45, growth: 1.1, desc: 'النباتات بتكبر أسرع شوي' },
+      cloudy: { id: 'cloudy', name: 'غائم', icon: '⛅', weight: 35, growth: 1, desc: 'يوم هادي ولطيف' },
+      rainy: { id: 'rainy', name: 'ماطر', icon: '🌧️', weight: 20, growth: 1, desc: 'المطر بيسقي كل حوض مرة وحدة' },
+    },
+
+    // الآفات: دودة صغيرة تبطئ النمو حتى يشيلها الطفل (مجاناً). لا تأكل شيئاً
+    PESTS: {
+      CHECK_MS: 30 * 1000,
+      CHANCE_PER_PLANT: 0.05,
+      MAX_CHANCE: 0.25,
+      MAX: 1,
+      SLOW: 0.5,
+    },
+
+    // طلبات الجيران: 3 طلبات يومية، المكافأة ضعف سعر البيع، ولا تنتهي صلاحيتها
+    ORDERS: {
+      SLOTS: 3,
+      REWARD_MULT: 2,
+      NEIGHBORS: [
+        { name: 'أم محمد', she: true, icon: '👩‍🦱' },
+        { name: 'أبو خليل', she: false, icon: '👴' },
+        { name: 'ستّي فاطمة', she: true, icon: '👵' },
+        { name: 'عمّو سامي', she: false, icon: '🧔' },
+        { name: 'الجارة سلمى', she: true, icon: '👩' },
+        { name: 'أبو أحمد', she: false, icon: '👨‍🦳' },
+        { name: 'خالتو ليلى', she: true, icon: '👩‍🦰' },
+        { name: 'أم يوسف', she: true, icon: '🧕' },
+      ],
+    },
+
+    // الحمام الزاجل: يزور مرة يومياً، وهديته ثابتة بالترتيب (غير عشوائية)
+    PIGEON_GIFTS: [
+      { coins: 15 },
+      { seeds: { mint: 2 } },
+      { coins: 20 },
+      { seeds: { basil: 2 } },
+      { coins: 25 },
+      { seeds: { tomato: 1 } },
+    ],
+
+    // مكافأة الدخول: حسب عدد أيام الدخول الكلي (لا توجد سلسلة تنكسر)
+    LOGIN_REWARDS: [
+      { coins: 20 },
+      { seeds: { mint: 3 } },
+      { coins: 30 },
+      { seeds: { basil: 2 } },
+      { coins: 40 },
+      { seeds: { tomato: 2 } },
+      { coins: 60 },
+    ],
 
     // العصافير: تزور النباتات أثناء اللعب فقط، وتبطئ النمو قليلاً وهي واقفة، بدون أي خسارة
     BIRDS: {

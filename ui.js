@@ -155,7 +155,8 @@ const UI = (() => {
       // الصفوف الخلفية أصغر قليلاً لإحساس العمق
       b.style.setProperty('--row-scale', rows > 1 ? (0.9 + 0.1 * row / (rows - 1)).toFixed(3) : 1);
       b.innerHTML = '<div class="planter"><div class="soil"></div><div class="front"></div></div>' +
-        '<div class="sprinkler" hidden></div><div class="plant"></div><div class="net" hidden></div><div class="perch"></div>' +
+        '<div class="sprinkler" hidden></div><div class="umbrella" hidden>⛱️</div><div class="plant"></div>' +
+        '<div class="net" hidden></div><div class="pest"></div><div class="perch"></div>' +
         '<div class="extras"></div><div class="timer" hidden></div>';
       el.plots.appendChild(b);
       plotVisualKeys.push('');
@@ -193,6 +194,10 @@ const UI = (() => {
       b.querySelector('.sprinkler').hidden = !plot.sprinkler;
       b.classList.toggle('has-net', plot.net);
       b.querySelector('.net').hidden = !plot.net;
+      b.querySelector('.umbrella').hidden = !plot.umbrella;
+      const pestEl = b.querySelector('.pest');
+      const hasPest = !!(plot.crop && plot.crop.pest);
+      if (hasPest !== (pestEl.textContent === '🐛')) pestEl.textContent = hasPest ? '🐛' : '';
 
       if (key !== plotVisualKeys[i]) {
         const prev = plotVisualKeys[i];
@@ -260,6 +265,13 @@ const UI = (() => {
     const np = Game.nextPlot();
     el.upgradeBadge.hidden = !(np && np.levelOk && np.coinsOk);
     el.scarecrow.toggleAttribute('hidden', !s.scarecrow); // عنصر SVG: لا يدعم خاصية hidden
+    const w = Game.weather;
+    if (el.app.dataset.weather !== w.id) el.app.dataset.weather = w.id;
+    el.weatherChip.textContent = w.icon;
+    const ready = s.orders.filter(Game.canFulfill).length;
+    el.boardBadge.hidden = !ready;
+    el.boardBadge.textContent = ready;
+    el.carrier.hidden = !Game.pigeonWaiting() || !!lockState || carrierLeaving;
     el.roofName.textContent = s.roofName || DATA.DEFAULT_ROOF_NAME;
     const n = Game.cropCount();
     el.shopBadge.hidden = n === 0;
@@ -298,7 +310,9 @@ const UI = (() => {
     if (mode.type === 'upgrade') return askUpgrade(i);
     if (mode.type === 'place') return doInstallTool(i, mode.tool);
     const crop = Game.state.plots[i].crop;
+    if (mode.type === 'fertilize') return doFertilize(i);
     if (crop && crop.bird) return doShoo(i);
+    if (crop && crop.pest) return doRemovePest(i);
     const info = Game.cropInfo(i);
     if (!info) {
       if (mode.type === 'plant') return doPlant(i, mode.plantId);
@@ -327,7 +341,7 @@ const UI = (() => {
     const p = DATA.PLANTS[plantId];
     render();
     puff(plotEl(i));
-    toast(r.sprinkled ? `زرعت ${p.name}! الرشاش سقاها 💦` : `زرعت ${p.name}! الآن اسقِها 💧`);
+    toast(r.rained ? `زرعت ${p.name}! المطر سقاها 🌧️` : r.sprinkled ? `زرعت ${p.name}! الرشاش سقاها 💦` : `زرعت ${p.name}! الآن اسقِها 💧`);
     if (mode.type === 'plant' && !Game.state.seeds[plantId]) setMode({ type: 'none' });
     else if (mode.type === 'plant') updateModeBanner();
   }
@@ -386,10 +400,45 @@ const UI = (() => {
     if (toolId === 'sprinkler') {
       rain(plotEl(i));
       toast('تم تركيب الرشاش 💦 هذا الحوض يسقي نفسه!', 3000);
+    } else if (toolId === 'umbrella') {
+      replay(plotEl(i).querySelector('.umbrella'), 'pop');
+      toast('ركّبت المظلة ⛱️ هذا الحوض بيعطش نص المرات', 3000);
     } else {
       replay(plotEl(i).querySelector('.net'), 'pop');
       toast('غطّيت النبتة بالشبكة 🥅 العصافير ما بتقدر توقف عليها', 3000);
     }
+  }
+
+  function doRemovePest(i) {
+    const r = Game.removePest(i);
+    if (!r.ok) return;
+    const from = plotEl(i).querySelector('.pest').getBoundingClientRect();
+    render();
+    floatText('👋🐛', from);
+    replay(plotEl(i).querySelector('.plant'), 'wiggle');
+    toast('شلت الدودة 🐛 النبتة رجعت تكبر بسرعتها 💚');
+  }
+
+  function doFertilize(i) {
+    const r = Game.fertilize(i);
+    if (!r.ok) {
+      const msg = {
+        empty: 'اختر نبتة مزروعة 🌱',
+        ready: 'هذه جاهزة للحصاد! ✨',
+        done: 'هذه النبتة أخذت سماد من قبل 🧪',
+      }[r.reason];
+      if (r.reason === 'energy') noEnergy();
+      else if (r.reason === 'none') setMode({ type: 'none' });
+      else toast(msg);
+      return;
+    }
+    const b = plotEl(i);
+    render();
+    replay(b.querySelector('.plant'), 'pop');
+    floatText('🧪✨', b.querySelector('.plant').getBoundingClientRect());
+    toast('🧪 النبتة صارت تكبر أسرع!');
+    if (!Game.state.tools.fertilizer) setMode({ type: 'none' });
+    else updateModeBanner();
   }
 
   function doShoo(i) {
@@ -511,6 +560,51 @@ const UI = (() => {
     $('restOk').onclick = closeModal;
   }
 
+  /* ---------- هدايا ثابتة: الحمام الزاجل ومكافأة الدخول ---------- */
+
+  let carrierLeaving = false;
+
+  function giftText(g) {
+    const parts = [];
+    if (g.coins) parts.push(`<i class="coin sm"></i> ${g.coins} عملة`);
+    if (g.seeds) for (const id of Object.keys(g.seeds)) parts.push(`🌱 ${g.seeds[id]} ${g.seeds[id] > 1 ? 'بذور' : 'بذرة'} ${DATA.PLANTS[id].name}`);
+    return parts.join(' · ');
+  }
+
+  function feedCarrier() {
+    const r = Game.feedPigeon();
+    if (!r.ok) return;
+    const rect = el.carrier.getBoundingClientRect();
+    carrierLeaving = true;
+    floatText('🌾', rect);
+    el.carrier.animate([
+      { transform: 'translate(0, 0)' },
+      { transform: 'translate(0, -10px) rotate(-6deg)', offset: .3 },
+      { transform: 'translate(-260px, -320px)' },
+    ], { duration: 1400, delay: 500, easing: 'ease-in' }).onfinish = () => { carrierLeaving = false; render(); };
+    render();
+    showModal(`
+      <div class="hero">🕊️💌</div>
+      <h2>أطعمت الحمام الزاجل 🌾</h2>
+      <p>جاب لك هدية من الجيران:<br><b>${giftText(r.gift)}</b></p>
+      <div class="row"><button class="btn green big" id="giftOk">شكراً يا حمامة! 💚</button></div>`);
+    $('giftOk').onclick = closeModal;
+  }
+
+  function checkLogin() {
+    if (lockState || Game.isFirstRun() || Parent.panelOpen || !el.modalOverlay.hidden || pendingGrandma) return;
+    const r = Game.claimLogin();
+    if (!r || !r.reward) return;
+    render();
+    showModal(`
+      <div class="hero">🌞</div>
+      <h2>أهلاً! هذا يومك رقم ${r.days} على السطح</h2>
+      <p>هديتك اليوم:<br><b>${giftText(r.reward)}</b></p>
+      <p class="rest-next">طقس اليوم: ${r.weather.icon} ${r.weather.name}، ${r.weather.desc}</p>
+      <div class="row"><button class="btn green big" id="loginOk">يلّا! 🌱</button></div>`);
+    $('loginOk').onclick = closeModal;
+  }
+
   /* ---------- رسائل عند العودة: الجدّة تسقي عنك ---------- */
 
   let pendingGrandma = null;
@@ -597,6 +691,7 @@ const UI = (() => {
     el.scene.classList.toggle('mode-plant', m.type === 'plant');
     el.scene.classList.toggle('mode-upgrade', m.type === 'upgrade');
     el.scene.classList.toggle('mode-place', m.type === 'place');
+    el.scene.classList.toggle('mode-fertilize', m.type === 'fertilize');
     el.waterBtn.classList.toggle('active', m.type === 'water');
     updateModeBanner();
   }
@@ -609,7 +704,13 @@ const UI = (() => {
     } else if (mode.type === 'upgrade') {
       el.modeText.textContent = '🔨 اختر حوضاً لترقيته';
     } else if (mode.type === 'place') {
-      el.modeText.textContent = mode.tool === 'net' ? '🥅 اختر نبتة لتغطيها بالشبكة' : '💦 اختر حوضاً لتركيب الرشاش';
+      el.modeText.textContent = {
+        net: '🥅 اختر نبتة لتغطيها بالشبكة',
+        sprinkler: '💦 اختر حوضاً لتركيب الرشاش',
+        umbrella: '⛱️ اختر حوضاً لتركيب المظلة',
+      }[mode.tool];
+    } else if (mode.type === 'fertilize') {
+      el.modeText.textContent = `🧪 اختر نبتة لتسميدها (عندك ${Game.state.tools.fertilizer || 0}) ⚡${DATA.TOOLS.fertilizer.energy}`;
     } else {
       const p = DATA.PLANTS[mode.plantId];
       const n = Game.state.seeds[mode.plantId] || 0;
@@ -647,6 +748,7 @@ const UI = (() => {
     if (sheet.kind === 'seeds') renderSeedsSheet();
     else if (sheet.kind === 'shop') renderShopSheet();
     else if (sheet.kind === 'upgrade') renderUpgradeSheet();
+    else if (sheet.kind === 'orders') renderOrdersSheet();
     el.sheetBody.scrollTop = scroll;
   }
 
@@ -777,10 +879,37 @@ const UI = (() => {
         ${locked ? `<div class="lock">🔒 يفتح في المستوى ${t.level}</div>` : owned ? `<div class="owned">عندك ${owned}</div>` : ''}
       </div>
       <div class="actions">
-        ${owned ? `<button class="btn green" data-act="placeTool" data-id="${t.id}">ركّبه</button>` : ''}
+        ${owned ? `<button class="btn green" data-act="${t.use ? 'useTool' : 'placeTool'}" data-id="${t.id}">${t.use ? 'استعمله' : 'ركّبه'}</button>` : ''}
         <button class="btn gold" data-act="buyTool" data-id="${t.id}" ${!locked && s.coins >= t.price ? '' : 'disabled'}>اشترِ <i class="coin sm"></i> ${t.price}</button>
       </div>
     </div>`;
+  }
+
+  function renderOrdersSheet() {
+    el.sheetTitle.textContent = 'طلبات الجيران 📋';
+    const s = Game.state;
+    el.sheetBody.innerHTML = '<p class="sheet-note">الجيران بيدفعوا ضعف السعر! والطلبات بتستناك، ما في استعجال 💚</p><div class="card-list">' +
+      s.orders.map((o, k) => {
+        const n = DATA.ORDERS.NEIGHBORS[o.who];
+        const p = DATA.PLANTS[o.plantId];
+        if (o.done) {
+          return `<div class="item-card order done">
+            <div class="ic emoji">${n.icon}</div>
+            <div class="info"><h3>${n.name}</h3><div class="desc">✅ شكراً! ${n.she ? 'مبسوطة' : 'مبسوط'} كثير 💚<br>طلب جديد بكرة</div></div>
+          </div>`;
+        }
+        const have = s.crops[o.plantId] || 0;
+        const ok = Game.canFulfill(o);
+        return `<div class="item-card order">
+          <div class="ic emoji">${n.icon}</div>
+          <div class="info">
+            <h3>${n.name}</h3>
+            <div class="order-want"><span class="mini-ic">${Art.icon(p)}</span>${n.she ? 'بدها' : 'بدّه'} ${o.qty} ${p.name}</div>
+            <div class="meta"><span>عندك ${Math.min(have, o.qty)}/${o.qty}</span><span>المكافأة <i class="coin sm"></i> ${Game.orderReward(o)}</span></div>
+          </div>
+          <div class="actions"><button class="btn green" data-act="fulfill" data-id="${k}" ${ok ? '' : 'disabled'}>سلّم</button></div>
+        </div>`;
+      }).join('') + '</div>';
   }
 
   function renderUpgradeSheet() {
@@ -857,6 +986,18 @@ const UI = (() => {
           toast(`اشتريت ${DATA.TOOLS[id].name} ${DATA.TOOLS[id].icon}`);
           render();
         }
+        break;
+      }
+      case 'useTool':
+        closeSheet();
+        setMode({ type: 'fertilize' });
+        break;
+      case 'fulfill': {
+        const k = Number(id);
+        const o = Game.state.orders[k];
+        const n = DATA.ORDERS.NEIGHBORS[o.who];
+        doSell(t, () => Game.fulfillOrder(k));
+        if (o.done) toast(`${n.icon} شكراً! ${n.name} ${n.she ? 'مبسوطة' : 'مبسوط'} كثير 💚`, 3000);
         break;
       }
       case 'placeTool':
@@ -1068,7 +1209,8 @@ const UI = (() => {
     ['scene', 'plots', 'coinCount', 'coinsPill', 'roofName', 'roofSign', 'waterBtn', 'modeBanner', 'modeText', 'modeClose',
       'toast', 'factCard', 'btnShop', 'btnSeeds', 'btnUpgrade', 'shopBadge', 'sheetOverlay', 'sheetTitle', 'sheetBody',
       'sheetClose', 'modalOverlay', 'modal', 'fx', 'pigeonLane', 'levelPill', 'levelNum', 'xpFill', 'energyPill',
-      'energyText', 'energyFill', 'upgradeBadge', 'scarecrow', 'mapBtn', 'birdLayer', 'app', 'lockScreen'].forEach(id => { el[id] = $(id); });
+      'energyText', 'energyFill', 'upgradeBadge', 'scarecrow', 'mapBtn', 'birdLayer', 'app', 'lockScreen',
+      'weatherChip', 'boardBtn', 'boardBadge', 'carrier'].forEach(id => { el[id] = $(id); });
 
     el.plots.addEventListener('click', e => {
       const b = e.target.closest('.plot');
@@ -1089,6 +1231,10 @@ const UI = (() => {
     el.energyPill.onclick = () => toast(`الطاقة ${Game.state.energy}/${DATA.ENERGY_MAX} ⚡ تتجدد كل صباح الساعة ${DATA.ENERGY_RESET_HOUR} 🌅`, 3000);
     window.addEventListener('resize', layoutPlots);
     Game.on('sprinkled', i => setTimeout(() => { if (!document.hidden && plotEl(i)) rain(plotEl(i)); }, 50));
+    Game.on('rained', i => setTimeout(() => { if (!document.hidden && plotEl(i)) rain(plotEl(i)); }, 50));
+    el.weatherChip.onclick = () => { const w = Game.weather; toast(`${w.icon} اليوم ${w.name}: ${w.desc}`, 3000); };
+    el.boardBtn.onclick = () => openSheet('orders');
+    el.carrier.onclick = feedCarrier;
   }
 
   function tick() {
@@ -1099,6 +1245,7 @@ const UI = (() => {
     refreshLock(); // الوقت المحسوب للتو قد يُنهي وقت اللعب
     if (!lockState && Parent.shouldWarn(now)) toast('باقي دقيقتين للعب اليوم ⏳ سطحك بينحفظ لحاله', 4500);
     showNotices();
+    checkLogin();
     checkRest();
     render();
   }

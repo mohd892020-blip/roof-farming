@@ -56,14 +56,23 @@ const Game = (() => {
 
   const isFirstRun = () => !state.roofName;
   const plant = id => DATA.PLANTS[id];
-  const waterInterval = p => Math.max(DATA.MIN_WATER_INTERVAL, p.growMs * DATA.WATER_FRACTION);
+  // المظلة تجعل الحوض يعطش نص المرات
+  const waterInterval = (p, plot) =>
+    Math.max(DATA.MIN_WATER_INTERVAL, p.growMs * DATA.WATER_FRACTION) * (plot && plot.umbrella ? DATA.UMBRELLA_WATER_MULT : 1);
   // المرحلة 4: الطقس المشمس، الآفات، السماد
-  const growthRate = crop => (crop && crop.bird ? DATA.BIRDS.SLOW : 1);
+  // الطقس المشمس يسرّع، والعصفور والدودة يبطئان (الدودة لا تبطئ أثناء الغياب)
+  function growthRate(crop, away) {
+    let r = DATA.WEATHER[state.weather.type].growth;
+    if (crop && crop.bird) r *= DATA.BIRDS.SLOW;
+    if (crop && crop.pest && !away) r *= DATA.PESTS.SLOW;
+    return r;
+  }
 
   /* ---------- الوقت ---------- */
 
   function tick(now) {
     refreshEnergy(now);
+    refreshDay(now);
     let dt = now - state.lastSeen;
     if (!Number.isFinite(dt) || dt < 0) {
       // الساعة رجعت للخلف: لا نمو سالب، نبدأ العدّ من الوقت الحالي
@@ -79,7 +88,7 @@ const Game = (() => {
     const away = dt > DATA.AWAY_THRESHOLD;
     if (away) clearBirds(); // أثناء الغياب لا توجد عصافير
     state.plots.forEach((plot, i) => grow(plot, dt, away, i));
-    if (!away && !paused) birdTick(now, dt);
+    if (!away && !paused) { birdTick(now, dt); pestTick(now, dt); }
     markDirty();
   }
 
@@ -201,31 +210,181 @@ const Game = (() => {
     };
   }
 
+  // سقاية تلقائية: الرشاش دائماً، والمطر مرة واحدة لكل حوض في اليوم الماطر
+  function autoWater(plot, index) {
+    const crop = plot.crop;
+    if (!crop || !crop.thirsty) return;
+    if (plot.sprinkler) {
+      crop.thirsty = false;
+      emit('sprinkled', index);
+    } else if (state.weather.type === 'rainy' && !state.weather.rained.includes(index)) {
+      crop.thirsty = false;
+      state.weather.rained.push(index);
+      emit('rained', index);
+    }
+  }
+
   function grow(plot, dt, away, index) {
     const crop = plot.crop;
     if (!crop) return;
     const p = plant(crop.plantId);
     if (crop.progress >= p.growMs) return;
-    if (crop.thirsty && plot.sprinkler) {
-      crop.thirsty = false;
-      emit('sprinkled', index);
-    }
+    autoWater(plot, index);
     if (crop.thirsty) return;
-    const W = waterInterval(p);
-    const target = crop.progress + dt * growthRate(crop);
+    const W = waterInterval(p, plot);
+    const target = crop.progress + dt * growthRate(crop, away);
 
     if (away || plot.sprinkler) {
       crop.progress = Math.min(p.growMs, target);
       while (crop.nextThirstAt <= crop.progress) crop.nextThirstAt += W;
     } else if (crop.nextThirstAt < p.growMs && target >= crop.nextThirstAt) {
-      crop.progress = crop.nextThirstAt;
+      crop.progress = Math.max(crop.progress, crop.nextThirstAt);
       crop.nextThirstAt += W;
       crop.thirsty = true;
       emit('thirsty', index);
+      autoWater(plot, index);
     } else {
       crop.progress = Math.min(p.growMs, target);
     }
     if (crop.progress >= p.growMs) emit('ready', index);
+  }
+
+  /* ---------- اليوم الجديد: الطقس وطلبات الجيران ---------- */
+
+  function refreshDay(now) {
+    const key = dayKey(now);
+    if (state.weather.day === key) return;
+    const firstEver = !state.weather.day;
+    // الطقس يُختار مرة واحدة لكل يوم
+    const list = Object.values(DATA.WEATHER);
+    let r = Math.random() * list.reduce((a, w) => a + w.weight, 0);
+    let pick = list[0];
+    for (const w of list) { r -= w.weight; if (r < 0) { pick = w; break; } }
+    state.weather = { day: key, type: firstEver ? 'sunny' : pick.id, rained: [] };
+    // الطلبات المنفّذة تُستبدل، وغير المنفّذة تبقى كما هي
+    state.orders = state.orders.filter(o => !o.done);
+    while (state.orders.length < DATA.ORDERS.SLOTS) state.orders.push(makeOrder());
+    markDirty();
+  }
+
+  function makeOrder() {
+    const N = DATA.ORDERS.NEIGHBORS;
+    const used = state.orders.map(o => o.who);
+    const free = N.map((_, i) => i).filter(i => !used.includes(i));
+    const who = free[Math.floor(Math.random() * free.length)];
+    // من النباتات المفتوحة، وكمية تناسب مدة النمو
+    const plants = DATA.PLANT_ORDER.map(plant).filter(isUnlocked);
+    const p = plants[Math.floor(Math.random() * plants.length)];
+    const h = p.growMs / DATA.HOUR;
+    const [lo, hi] = h <= 0.34 ? [3, 6] : h <= 1 ? [2, 4] : h <= 6 ? [1, 3] : [1, 2];
+    return { who, plantId: p.id, qty: lo + Math.floor(Math.random() * (hi - lo + 1)), done: false };
+  }
+
+  const orderReward = o => plant(o.plantId).sellPrice * o.qty * DATA.ORDERS.REWARD_MULT;
+
+  function fulfillOrder(k) {
+    const o = state.orders[k];
+    if (!o || o.done) return { ok: false, reason: 'none' };
+    if ((state.crops[o.plantId] || 0) < o.qty) return { ok: false, reason: 'crops' };
+    state.crops[o.plantId] -= o.qty;
+    if (!state.crops[o.plantId]) delete state.crops[o.plantId];
+    const coins = orderReward(o);
+    state.coins += coins;
+    state.stats.earned += coins;
+    o.done = true;
+    commit();
+    return { ok: true, coins, order: o };
+  }
+
+  const canFulfill = o => !o.done && (state.crops[o.plantId] || 0) >= o.qty;
+
+  /* ---------- هدايا ثابتة: الحمام الزاجل ومكافأة الدخول ---------- */
+
+  function giveGift(g) {
+    if (g.coins) state.coins += g.coins;
+    if (g.seeds) for (const id of Object.keys(g.seeds)) state.seeds[id] = (state.seeds[id] || 0) + g.seeds[id];
+  }
+
+  const pigeonWaiting = (now = Date.now()) => state.pigeon.lastFedDay !== dayKey(now);
+
+  function feedPigeon(now = Date.now()) {
+    if (!pigeonWaiting(now)) return { ok: false };
+    const gift = DATA.PIGEON_GIFTS[state.pigeon.visits % DATA.PIGEON_GIFTS.length];
+    giveGift(gift);
+    state.pigeon.visits++;
+    state.pigeon.lastFedDay = dayKey(now);
+    commit();
+    return { ok: true, gift };
+  }
+
+  // أول دخول في كل يوم: نعدّ الأيام الكلية. اليوم الأول = هدية البداية
+  function claimLogin(now = Date.now()) {
+    const key = dayKey(now);
+    if (state.login.lastDay === key) return null;
+    state.login.lastDay = key;
+    state.login.days++;
+    let reward = null;
+    if (state.login.days > 1) {
+      reward = DATA.LOGIN_REWARDS[(state.login.days - 2) % DATA.LOGIN_REWARDS.length];
+      giveGift(reward);
+    }
+    commit();
+    return { days: state.login.days, reward, weather: DATA.WEATHER[state.weather.type] };
+  }
+
+  /* ---------- الآفات ---------- */
+
+  let pestClock = 0;
+
+  function pestTick(now, dt) {
+    const P = DATA.PESTS;
+    pestClock += dt;
+    if (pestClock < P.CHECK_MS) return;
+    pestClock = 0;
+    const growing = [];
+    let pests = 0;
+    state.plots.forEach((plot, i) => {
+      if (!plot.crop) return;
+      if (plot.crop.pest) { pests++; return; }
+      if (plot.crop.progress < plant(plot.crop.plantId).growMs) growing.push(i);
+    });
+    if (!growing.length || pests >= P.MAX) return;
+    if (Math.random() > Math.min(P.MAX_CHANCE, P.CHANCE_PER_PLANT * growing.length)) return;
+    const i = growing[Math.floor(Math.random() * growing.length)];
+    state.plots[i].crop.pest = now;
+    emit('pest', i);
+  }
+
+  function removePest(i) {
+    const c = state.plots[i] && state.plots[i].crop;
+    if (!c || !c.pest) return { ok: false };
+    c.pest = 0;
+    state.stats.pestsRemoved = (state.stats.pestsRemoved || 0) + 1;
+    commit();
+    return { ok: true };
+  }
+
+  /* ---------- السماد ---------- */
+
+  function fertilize(i) {
+    const t = DATA.TOOLS.fertilizer;
+    const plot = state.plots[i];
+    const info = cropInfo(i);
+    if (!info) return { ok: false, reason: 'empty' };
+    if (info.ready) return { ok: false, reason: 'ready' };
+    if (plot.crop.fert) return { ok: false, reason: 'done' };
+    if (!state.tools.fertilizer) return { ok: false, reason: 'none' };
+    if (!spendEnergy(t.energy)) return { ok: false, reason: 'energy' };
+    state.tools.fertilizer--;
+    if (!state.tools.fertilizer) delete state.tools.fertilizer;
+    const c = plot.crop;
+    const p = info.plant;
+    c.progress += (p.growMs - c.progress) * t.boost;
+    c.fert = true;
+    const W = waterInterval(p, plot);
+    while (c.nextThirstAt <= c.progress) c.nextThirstAt += W;
+    commit();
+    return { ok: true };
   }
 
   /* ---------- الطاقة اليومية ---------- */
@@ -302,7 +461,7 @@ const Game = (() => {
       stage,
       ready,
       thirsty: !ready && crop.thirsty,
-      remainingMs: ready ? 0 : (p.growMs - crop.progress) / growthRate(crop),
+      remainingMs: ready ? 0 : (p.growMs - crop.progress) / growthRate(crop, false),
       harvestNo: crop.harvests + 1,
       harvestsTotal: p.repeat ? p.repeat.harvests : 1,
     };
@@ -350,14 +509,18 @@ const Game = (() => {
     plot.crop = {
       plantId,
       progress: 0,
-      nextThirstAt: waterInterval(p),
-      thirsty: !plot.sprinkler, // تحتاج سقاية عند الزراعة، إلا إذا فيه رشاش
+      nextThirstAt: waterInterval(p, plot),
+      thirsty: true, // تحتاج سقاية عند الزراعة (إلا إذا سقاها الرشاش أو المطر)
       harvests: 0,
       bird: 0,
+      pest: 0,
+      fert: false,
       plantedAt: Date.now(),
     };
+    autoWater(plot, i);
+    const autoWatered = !plot.crop.thirsty;
     commit();
-    return { ok: true, sprinkled: plot.sprinkler };
+    return { ok: true, sprinkled: autoWatered, rained: autoWatered && !plot.sprinkler };
   }
 
   function water(i) {
@@ -391,8 +554,11 @@ const Game = (() => {
     if (p.repeat && crop.harvests < p.repeat.harvests) {
       // شجرة مثمرة: تبدأ دورة ثمار جديدة
       crop.progress = 0;
-      crop.nextThirstAt = waterInterval(p);
-      crop.thirsty = !plot.sprinkler;
+      crop.nextThirstAt = waterInterval(p, plot);
+      crop.thirsty = true;
+      crop.pest = 0;
+      crop.fert = false;
+      autoWater(plot, i);
     } else {
       plot.crop = null;
     }
@@ -445,7 +611,7 @@ const Game = (() => {
   // تركيب أداة على حوض (رشاش أو شبكة)، وتبقى عليه دائماً
   function installTool(i, toolId) {
     const plot = state.plots[i];
-    if (!plot || !DATA.TOOLS[toolId]) return { ok: false, reason: 'unknown' };
+    if (!plot || !DATA.TOOLS[toolId] || DATA.TOOLS[toolId].use) return { ok: false, reason: 'unknown' };
     if (plot[toolId]) return { ok: false, reason: 'has' };
     if (!state.tools[toolId]) return { ok: false, reason: 'none' };
     state.tools[toolId]--;
@@ -494,6 +660,8 @@ const Game = (() => {
     get state() { return state; },
     isFirstRun, cropInfo, cropCount, sellPriceFor, levelInfo, level, unlocksAt, isUnlocked,
     tierOf, nextTier, nextPlot, dayKey, takeNotices, setPaused, restInfo,
+    fulfillOrder, orderReward, canFulfill, pigeonWaiting, feedPigeon, claimLogin, removePest, fertilize,
+    get weather() { return DATA.WEATHER[state.weather.type]; },
     buySeed, plantSeed, water, harvest, sell, sellAll, setRoofName,
     buyTool, installTool, unlockPlot, upgradePlot, shooBird, guardProgress,
   };

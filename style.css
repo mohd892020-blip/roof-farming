@@ -1294,3 +1294,120 @@ button {
 .key.ok { background: var(--green); color: #fff; box-shadow: 0 4px 0 var(--green-dark); }
 
 @keyframes starTwinkle { from { opacity: .55; } to { opacity: 1; } }
+
+/* ---------- الطقس ---------- */
+.weather-chip, .board-btn {
+  position: absolute;
+  right: 15px;
+  z-index: 6;
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 248, 236, .9);
+  border: 3px solid #fff;
+  box-shadow: 0 3px 0 rgba(0,0,0,.12);
+  font-size: 24px;
+  line-height: 1;
+}
+.weather-chip { top: 74px; }
+.board-btn { top: 130px; }
+.board-btn .badge { top: -8px; left: -8px; min-width: 24px; height: 24px; font-size: 12px; }
+
+#app[data-weather="sunny"] .sun::after {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 214, 102, .45) 0 8deg, transparent 8deg 30deg);
+  -webkit-mask: radial-gradient(circle, transparent 52%, #000 54%);
+  mask: radial-gradient(circle, transparent 52%, #000 54%);
+  animation: spin 24s linear infinite;
+}
+#app[data-weather="cloudy"] .sky-area { background: linear-gradient(#a9c3d6 0%, #cddbe5 60%, #ece3d2 100%); }
+#app[data-weather="cloudy"] .sun { opacity: .5; }
+#app[data-weather="cloudy"] .cloud { background: #f1f4f7; opacity: 1; }
+#app[data-weather="cloudy"] .cloud::before, #app[data-weather="cloudy"] .cloud::after { background: #f1f4f7; }
+#app[data-weather="rainy"] .sky-area { background: linear-gradient(#8ea3b8 0%, #b2c1ce 60%, #d6d3c9 100%); }
+#app[data-weather="rainy"] .sun { opacity: 0; }
+#app[data-weather="rainy"] .cloud, #app[data-weather="rainy"] .cloud::before, #app[data-weather="rainy"] .cloud::after { background: #dfe5ec; opacity: 1; }
+#app[data-weather="rainy"] .floor-area { filter: saturate(.85) brightness(.96); }
+.rain {
+  position: absolute; inset: 0;
+  z-index: 6;
+  display: none;
+  pointer-events: none;
+  opacity: .55;
+  background-image:
+    repeating-linear-gradient(100deg, transparent 0 22px, rgba(255,255,255,.55) 22px 23px, transparent 23px 47px),
+    repeating-linear-gradient(100deg, transparent 0 35px, rgba(255,255,255,.35) 35px 36px, transparent 36px 61px);
+  background-size: 140px 90px, 190px 130px;
+  animation: rainFall .6s linear infinite;
+}
+#app[data-weather="rainy"] .rain { display: block; }
+#app.night .sun::after, #app.night .rain { display: none; }
+#app.night .sun { opacity: 1; }
+#app.night .sky-area { background: linear-gradient(#0e1a3a 0%, #1f2d63 55%, #3b3f78 100%); }
+.night .weather-chip, .night .board-btn { background: rgba(40, 50, 100, .8); border-color: rgba(255,255,255,.4); }
+
+/* ---------- الحمام الزاجل ---------- */
+.carrier {
+  position: absolute;
+  right: 26px; top: -72px;
+  z-index: 5;
+  width: 58px; height: 46px;
+  padding: 0;
+  animation: bob 1.8s ease-in-out infinite;
+}
+.carrier svg { width: 100%; height: 100%; display: block; }
+.carrier-bubble {
+  position: absolute;
+  top: -26px; left: 50%;
+  margin-left: -16px;
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 18px;
+  box-shadow: 0 2px 0 rgba(0,0,0,.12);
+  animation: float 1.4s ease-in-out infinite;
+}
+
+/* ---------- الآفات والمظلة ---------- */
+.pest {
+  position: absolute;
+  z-index: 3;
+  left: 22%;
+  bottom: 66px;
+  font-size: 20px;
+  line-height: 1;
+  pointer-events: none;
+  animation: crawl 3s ease-in-out infinite;
+}
+.pest:empty { display: none; }
+.plot[data-stage="0"] .pest { bottom: 38px; }
+.plot[data-stage="1"] .pest { bottom: 50px; }
+.plot:has(.pest:not(:empty)) .plant { filter: saturate(.8); }
+.umbrella {
+  position: absolute;
+  z-index: 3;
+  left: -6px;
+  bottom: 34px;
+  font-size: 34px;
+  line-height: 1;
+  transform: rotate(-12deg);
+  transform-origin: 50% 100%;
+  pointer-events: none;
+}
+.umbrella.pop { animation: pop .45s ease; }
+.mode-fertilize .plot:not(.empty):not(.ready) .soil { animation: highlight 1s ease-in-out infinite; }
+
+/* ---------- لوحة الجيران ---------- */
+.sheet-note { margin: 0 4px 12px; font-size: 15px; font-weight: 700; color: var(--ink-soft); line-height: 1.6; }
+.order-want { display: flex; align-items: center; gap: 4px; font-size: 16px; font-weight: 800; }
+.mini-ic { width: 28px; height: 28px; flex: none; }
+.mini-ic svg { width: 100%; height: 100%; }
+.item-card.order.done { background: #eef8e8; box-shadow: 0 3px 0 #cfe7c2; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes rainFall { from { background-position: 0 0, 0 0; } to { background-position: -16px 90px, -22px 130px; } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes crawl { 0%, 100% { transform: translateX(0) scaleX(1); } 45% { transform: translateX(14px) scaleX(1); } 50% { transform: translateX(14px) scaleX(-1); } 95% { transform: translateX(0) scaleX(-1); } }
